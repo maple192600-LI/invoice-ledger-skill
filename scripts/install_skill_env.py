@@ -13,6 +13,15 @@ VENV_DIR = PROJECT_ROOT / ".venv"
 OcrMode = Literal["auto", "gpu", "cpu", "none"]
 
 
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+_configure_stdio()
+
+
 def _venv_python(root: Path = PROJECT_ROOT) -> Path:
     if sys.platform == "win32":
         return root / ".venv" / "Scripts" / "python.exe"
@@ -26,6 +35,8 @@ def detect_nvidia_gpu() -> dict:
     result = subprocess.run(
         [nvidia_smi, "--query-gpu=name", "--format=csv,noheader"],
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         check=False,
     )
@@ -73,7 +84,15 @@ def _run(command: list[str], cwd: Path, verbose: bool = False) -> None:
     if verbose:
         subprocess.run(command, cwd=cwd, check=True)
         return
-    result = subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
     if result.returncode == 0:
         return
     if result.stdout:
