@@ -1,0 +1,14 @@
+.venv/
+.ocr_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+output/
+*.draft.xlsx
+*.before_*.xlsx
+~$*.xlsx
+.DS_Store
+Thumbs.db

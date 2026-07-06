@@ -1,0 +1,92 @@
+schema_id: medical-fiscal-receipt
+name: 医疗收费票据
+stage: stage_two_png_ability_pack
+variants:
+  - outpatient-medical-fiscal-receipt
+
+match_rules:
+  required_all:
+    - 医疗
+    - 收费票据
+  required_any:
+    - 门诊
+    - 检查费
+    - 治疗费
+    - 收款单位
+  min_required_any: 1
+
+fields:
+  invoice_code:
+    aliases: []
+    required: false
+  invoice_no:
+    aliases:
+      - 票据号码
+    required: false
+  invoice_date:
+    aliases:
+      - 开票日期
+    required: true
+  buyer_name:
+    aliases:
+      - 交款人
+    required: false
+  buyer_tax_id:
+    aliases: []
+    required: false
+  seller_name:
+    aliases:
+      - 收款单位
+    required: true
+  seller_tax_id:
+    aliases: []
+    required: false
+  invoice_type:
+    aliases:
+      - 收费票据
+    required: true
+  amount_total:
+    aliases:
+      - 小写
+    required: true
+  tax_total:
+    aliases: []
+    required: true
+  total_with_tax:
+    aliases:
+      - 小写
+    required: true
+  item_name:
+    aliases:
+      - 项目名称
+    required: false
+  line_amount:
+    aliases:
+      - 金额
+    required: false
+  line_tax_amount:
+    aliases: []
+    required: false
+
+amount_checks:
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true
+
+layout_rules:
+  simple_items:
+    total_fallback_y: 520
+    min_y: 190
+    max_y_before_total: 20
+    max_name_x: 780
+    exclude_terms:
+      - 项目名称
+      - 数量
+      - 单位
+      - 金额
+      - 备注
+      - 合计

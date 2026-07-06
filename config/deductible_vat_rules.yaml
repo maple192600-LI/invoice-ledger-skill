@@ -1,0 +1,33 @@
+# Domestic passenger transport deductible VAT split rules.
+# Policy basis:
+# - 财政部 税务总局公告2026年第13号：电子铁路客票、电子航空行程单按票面列明或包含的增值税税额；公路、水路等其他客票按3%公式。
+# - 历史航空运输电子客票行程单：票价 + 燃油附加费按9%价税分离，机场建设费等非应税项目不参与拆分。
+# - 配置只有在对应 schema 已建模并被 schema router 命中后才会生效；未建模票种保持 unmodeled。
+rules:
+  - rule_id: legacy_air_ticket_itinerary_9pct
+    schema_ids:
+      - air-ticket-itinerary
+    method: split_tax_inclusive_components
+    rate: 9%
+    taxable_item_names:
+      - 票价
+      - 燃油附加费
+    non_taxable_item_names:
+      - 机场建设费
+      - 保险费
+    remark: 按国内旅客运输服务抵扣规则拆分：票价和燃油附加费按9%价税分离
+
+  - rule_id: road_water_passenger_ticket_3pct
+    schema_ids:
+      - road-bus-ticket
+      - water-passenger-ticket
+    method: split_tax_inclusive_total
+    rate: 3%
+    remark: 按国内旅客运输服务抵扣规则拆分：公路、水路等其他客票按3%价税分离
+
+  - rule_id: railway_passenger_ticket_9pct
+    schema_ids:
+      - railway-ticket
+    method: split_tax_inclusive_total
+    rate: 9%
+    remark: 按国内旅客运输服务抵扣规则拆分：铁路客票按9%价税分离

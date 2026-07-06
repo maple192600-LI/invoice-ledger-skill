@@ -1,0 +1,26 @@
+name: invoice-ledger-skill
+entrypoint: scripts/fp_ledger.py
+installer: scripts/install_skill_env.py
+doctor: scripts/fp_doctor.py
+stage: public_release
+required_inputs:
+  - input
+  - draft-ledger
+  - config
+  - target-sheet
+  - output-dir
+optional_inputs:
+  - dry-run
+  - save-evidence
+  - run-id
+  - update-existing
+  - template-profile
+  - write-in-place
+  - replace-existing
+capabilities:
+  - text-layer PDF and text invoice parsing
+  - image invoice OCR parsing with GPU or CPU OCR config
+  - single-page image/scanned PDF OCR parsing with GPU or CPU OCR config
+  - draft ledger dry-run and Excel write
+  - evidence JSON and Markdown output
+  - local first-install environment check

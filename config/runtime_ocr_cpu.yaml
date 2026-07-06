@@ -1,0 +1,27 @@
+stage: stage_two_ocr_cpu
+evidence:
+  default_mode: auto
+  write_intermediate_json: true
+  write_markdown: true
+ocr:
+  enabled: true
+  provider: paddle
+  lang: ch
+  ocr_version: PP-OCRv6
+  device: cpu
+  render_dpi: 300
+  use_doc_orientation_classify: false
+  use_doc_unwarping: false
+  use_textline_orientation: false
+unsupported_policy:
+  image: ocr
+  ocr_required: ocr
+  ofd: structured_unsupported
+  complex_multipage_pdf: structured_unsupported
+deductible_vat:
+  enabled: true
+  rules_path: config/deductible_vat_rules.yaml
+excel:
+  default_target_sheet: 发票信息采集
+  template_profile: config/template_profiles/current.yaml
+  write_original_template: false

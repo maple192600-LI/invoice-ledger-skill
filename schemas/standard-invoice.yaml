@@ -1,0 +1,413 @@
+schema_id: standard-invoice
+name: 标准发票类
+stage: shared_baseline
+variants:
+  - traditional-vat-form
+  - digital-invoice-form
+
+validation:
+  require_field_evidence: true
+
+match_rules:
+  unsupported_current: []
+  required_any:
+    - 发票号码
+    - 开票日期
+    - 价税合计
+    - 纳税人识别号
+  title_keywords:
+    - 电子发票
+    - 增值税电子普通发票
+    - 增值税专用发票
+  unmodeled_when_all_absent:
+    - 发票号码
+    - 价税合计
+    - 发票代码
+
+variant_rules:
+  digital-invoice-form:
+    keywords:
+      - 电子发票（普通发票）
+      - 电子发票（增值税专用发票）
+  traditional-vat-form:
+    keywords:
+      - 发票代码
+      - 机器编号
+      - 校验码
+
+variant_required_fields:
+  digital-invoice-form:
+    - buyer_name
+    - buyer_tax_id
+    - seller_name
+    - seller_tax_id
+
+fields:
+  invoice_code:
+    aliases:
+      - 发票代码
+    required: false
+    patterns:
+      - "(?<!\\d)\\d{10,12}(?!\\d)"
+    exclude_terms:
+      - 机器编号
+      - 校验码
+      - 纳税人识别号
+  invoice_no:
+    aliases:
+      - 发票号码
+      - 发票号码：
+      - 发票号码 :
+    required: true
+    patterns:
+      - "(?<!\\d)\\d{8,20}(?!\\d)"
+    exclude_terms:
+      - 机器编号
+      - 校验码
+      - 纳税人识别号
+      - 统一社会信用代码
+      - 银行账号
+      - 电话
+      - 订单号
+      - 电子客票号
+      - 页码
+  invoice_date:
+    aliases:
+      - 开票日期
+    required: true
+    patterns:
+      - "\\d{4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日"
+      - "\\d{4}-\\d{1,2}-\\d{1,2}"
+    exclude_terms: []
+  buyer_name:
+    aliases:
+      - 购买方名称
+      - 购买方信息
+      - 购 买 方 信 息
+      - 名称
+    required: false
+    exclude_terms: []
+  buyer_tax_id:
+    aliases:
+      - 购买方税号
+      - 统一社会信用代码
+      - 纳税人识别号
+    required: false
+    patterns:
+      - "[0-9A-Z]{15,20}"
+    exclude_terms: []
+  seller_name:
+    aliases:
+      - 销售方名称
+      - 销售方信息
+      - 销 售 方 信 息
+      - 名称
+    required: false
+    exclude_terms: []
+  seller_tax_id:
+    aliases:
+      - 销售方税号
+      - 统一社会信用代码
+      - 纳税人识别号
+    required: false
+    patterns:
+      - "[0-9A-Z]{15,20}"
+    exclude_terms: []
+  invoice_type:
+    aliases:
+      - 电子发票
+      - 增值税电子普通发票
+      - 铁路电子客票
+    required: false
+    exclude_terms: []
+  amount_total:
+    aliases:
+      - 合计
+      - 金额合计
+      - 金额
+    required: false
+    exclude_terms:
+      - 单价
+      - 数量
+  tax_total:
+    aliases:
+      - 税额合计
+      - 税额
+    required: false
+    exclude_terms:
+      - 税率
+  total_with_tax:
+    aliases:
+      - 价税合计
+      - 小写
+    required: true
+    exclude_terms: []
+  item_name:
+    aliases:
+      - 项目名称
+      - 货物或应税劳务、服务名称
+    required: false
+    exclude_terms: []
+  spec_model:
+    aliases:
+      - 规格型号
+    required: false
+    exclude_terms: []
+  unit:
+    aliases:
+      - 单位
+      - 单 位
+    required: false
+    exclude_terms: []
+  quantity:
+    aliases:
+      - 数量
+      - 数 量
+    required: false
+    exclude_terms: []
+  unit_price:
+    aliases:
+      - 单价
+      - 单 价
+    required: false
+    exclude_terms: []
+  line_amount:
+    aliases:
+      - 金额
+    required: false
+    exclude_terms: []
+  tax_rate:
+    aliases:
+      - 税率
+      - 征收率
+    required: false
+    exclude_terms: []
+  line_tax_amount:
+    aliases:
+      - 税额
+    required: false
+    exclude_terms: []
+  service_location:
+    aliases:
+      - 服务发生地
+      - 项目地点
+    required: false
+    exclude_terms: []
+  project_name:
+    aliases:
+      - 建筑项目名称
+      - 工程名称
+    required: false
+    exclude_terms: []
+
+amount_checks:
+  - amount_completeness_check
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true
+  header_aliases:
+    item_name:
+      - 项目名称
+      - 货物或应税劳务、服务名称
+    spec_model:
+      - 规格型号
+    unit:
+      - 单位
+      - 单 位
+    quantity:
+      - 数量
+      - 数 量
+    unit_price:
+      - 单价
+      - 单 价
+    line_amount:
+      - 金额
+    tax_rate:
+      - 税率
+      - 税率/征收率
+    line_tax_amount:
+      - 税额
+
+ocr_table:
+  item_start_max_x: 470
+  end_marker_min_x: 1500
+  end_marker_min_y_delta: 250
+  last_column: line_tax_amount
+  column_right_edges:
+    item_name: 470
+    spec_model: 760
+    unit: 1000
+    quantity: 1260
+    unit_price: 1560
+    line_amount: 1850
+    tax_rate: 2150
+
+item_parse_rules:
+  unit_tokens:
+    - 个
+    - 间
+    - 天
+    - 次
+    - 升
+    - 根
+    - 条
+    - 张
+    - 件
+    - 套
+    - 份
+    - 台
+    - 元
+    - 立方米
+    - 立方米（方）
+    - 立方米(方)
+  textual_spec_tokens:
+    - 间
+    - 货车
+    - 客车
+    - 一型货车
+    - 二型货车
+    - 三型货车
+    - 四型货车
+    - 小型车
+    - 大型车
+
+traditional_vat_layout:
+  header:
+    invoice_code:
+      min_x: 180
+      max_x: 540
+      min_y: 10
+      max_y: 40
+      pattern: "(?<!\\d)\\d{10,12}(?!\\d)"
+    invoice_no:
+      min_x: 450
+      max_x: 540
+      min_y: 33
+      max_y: 55
+      pattern: "(?<!\\d)\\d{8,20}(?!\\d)"
+    invoice_date:
+      min_x: 450
+      max_x: 560
+      min_y: 40
+      max_y: 75
+  parties:
+    buyer_name:
+      min_x: 90
+      max_x: 340
+      min_y: 80
+      max_y: 115
+    buyer_tax_id:
+      min_x: 90
+      max_x: 340
+      min_y: 95
+      max_y: 125
+    seller_name:
+      min_x: 90
+      max_x: 340
+      min_y: 290
+      max_y: 335
+    seller_tax_id:
+      min_x: 90
+      max_x: 340
+      min_y: 300
+      max_y: 330
+  totals:
+    amount_tax:
+      min_x: 390
+      max_x: 600
+      min_y: 250
+      max_y: 275
+    total_with_tax:
+      min_x: 160
+      max_x: 600
+      min_y: 270
+      max_y: 295
+  item_area:
+    min_y: 158
+    max_y: 255
+
+party_geometry:
+  variant_rules:
+    digital-invoice-form:
+      enabled: true
+      split_x_ratio: 0.50
+      name_band:
+        min_y: 70
+        max_y: 145
+        exclude_terms:
+          - 纳税人识别号
+          - 电子发票
+          - 发票
+          - 购买方信息
+          - 销售方信息
+          - 购买方
+          - 销售方
+      tax_band:
+        min_y: 105
+        max_y: 145
+
+text_labels:
+  buyer_name_labels:
+    - 购买方名称
+  seller_name_labels:
+    - 销售方名称
+  generic_name_label: 名称
+  ignore_near_name_terms:
+    - 统一社会信用代码
+    - 纳税人识别号
+    - 购
+    - 买
+    - 方
+    - 销
+    - 售
+    - 信
+    - 息
+    - 名称
+    - 密码区
+    - 购买方
+    - 销售方
+  total_line:
+    include_all:
+      - 合
+      - 计
+    exclude_any:
+      - 价税合计
+
+invoice_type_context:
+  title_rules:
+    - include_all:
+        - 山东增值
+        - 普通发票
+      value: 山东增值税电子普通发票
+      confidence: 0.99
+    - include_all:
+        - 普通发票
+      value: 电子发票（普通发票）
+      confidence: 0.98
+    - include_any:
+        - 增值税专用发票
+        - 专用发票
+      value: 电子发票（增值税专用发票）
+      confidence: 0.98
+  variant_rules:
+    digital-invoice-form:
+      tax_rate_rules:
+        - rate: 13%
+          value: 电子发票（增值税专用发票）
+          confidence: 0.96
+      default: 电子发票（普通发票）
+      confidence: 0.96
+  tax_rate_rules:
+    - rate: 13%
+      value: 电子发票（增值税专用发票）
+      confidence: 0.95
+    - rate: 1%
+      value: 电子发票（普通发票）
+      confidence: 0.95
+    - rate: 6%
+      value: 电子发票（普通发票）
+      confidence: 0.95

@@ -1,0 +1,20 @@
+stage: stage_one_baseline
+evidence:
+  default_mode: auto
+  write_intermediate_json: true
+  write_markdown: true
+ocr:
+  enabled: false
+  provider: unsupported
+unsupported_policy:
+  image: structured_unsupported
+  ocr_required: structured_unsupported
+  ofd: structured_unsupported
+  complex_multipage_pdf: structured_unsupported
+deductible_vat:
+  enabled: true
+  rules_path: config/deductible_vat_rules.yaml
+excel:
+  default_target_sheet: 发票信息采集
+  template_profile: config/template_profiles/current.yaml
+  write_original_template: false
