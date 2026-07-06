@@ -144,32 +144,31 @@ sheets:
     name: 识别提示
     mode: review_issues
     fields:
+      severity:
+        headers: [状态]
+        required: true
+      issue_type:
+        headers: [问题]
+        required: true
+      source_file:
+        headers: [文件]
+        required: true
+      page_text:
+        headers: [页码]
+        required: true
+      invoice_no:
+        headers: [发票号码]
+        required: false
+      amount_total:
+        headers: [价税合计]
+        required: false
+      check_location:
+        headers: [核对位置]
+        required: true
+      action:
+        headers: [处理方式]
+        required: true
       draft_row_id:
         headers: [票据ID]
         required: true
-        source: invoice_line_key
-      source_file:
-        headers: [文件名]
-        required: true
-      severity:
-        headers: [异常等级]
-        required: true
-        static: 需复核
-      issue_type:
-        headers: [异常类型]
-        required: true
-        source: recognition_status
-      issue_field:
-        headers: [异常字段]
-        required: false
-      recognized_value:
-        headers: [识别值]
-        required: false
-      system_judgement:
-        headers: [系统判断]
-        required: false
-        source: recognition_status
-      review_suggestion:
-        headers: [复核建议]
-        required: true
-        source: remark
+        source: notice_id

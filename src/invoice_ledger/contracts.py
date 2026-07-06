@@ -395,11 +395,15 @@ class RecognitionNotice(ContractModel):
     page_text: str
     severity: str
     issue_type: str
-    issue_field: str | None = None
-    recognized_value: str | None = None
-    system_judgement: str
-    review_suggestion: str
+    invoice_no: str | None = None
+    amount_total: Decimal | None = None
+    check_location: str
+    action: str
     invoice_unit_id: str
+
+    @field_serializer("amount_total", when_used="json")
+    def _serialize_amount_total(self, value: Decimal | None) -> str | None:
+        return format_money(value)
 
 
 class WriteResult(ContractModel):

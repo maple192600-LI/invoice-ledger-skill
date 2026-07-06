@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from hashlib import sha1
 from pathlib import Path
 from typing import Any
 
-from ..contracts import LedgerRow, RecognitionNotice, RecognitionStatus
+from ..contracts import LedgerRow, RecognitionNotice, RecognitionStatus, normalize_amount
 from ..validation.review_notes import user_review_remark
 
 
@@ -19,8 +20,8 @@ def page_text(page_range: list[int]) -> str:
     return f"第 {pages[0]}-{pages[-1]} 页"
 
 
-def _notice_id(invoice_unit_id: str, issue_type: str, issue_field: str | None) -> str:
-    digest = sha1(f"{invoice_unit_id}|{issue_type}|{issue_field or ''}".encode("utf-8")).hexdigest()[:20]
+def _notice_id(invoice_unit_id: str, issue_type: str, notice_key: str | None) -> str:
+    digest = sha1(f"{invoice_unit_id}|{issue_type}|{notice_key or ''}".encode("utf-8")).hexdigest()[:20]
     return f"notice_{digest}"
 
 
@@ -28,45 +29,32 @@ def _display_file_name(source_file: str) -> str:
     return Path(source_file).name
 
 
-def _review_suggestion(row: LedgerRow) -> str:
+def _review_action(row: LedgerRow) -> str:
     parts = [row.review_remark, row.remark]
     text = "；".join(str(part).strip() for part in parts if str(part or "").strip())
     return user_review_remark(text) if text else "请根据原始发票核对该行识别结果。"
 
 
-def _invoice_no_text(row: LedgerRow) -> str:
+def _invoice_no(row: LedgerRow) -> str | None:
     invoice_no = str(row.invoice_no or "").strip()
-    return f"发票号码：{invoice_no}" if invoice_no else "发票号码：未识别"
+    return invoice_no or None
 
 
-def _row_content_text(row: LedgerRow) -> str:
-    parts = []
-    if row.item_name:
-        parts.append(f"项目：{row.item_name}")
-    if row.line_amount is not None:
-        parts.append(f"金额：{row.line_amount}")
-    if row.line_total_with_tax is not None:
-        parts.append(f"价税合计：{row.line_total_with_tax}")
-    return "；".join(parts) if parts else "项目和金额未识别"
+def _amount_total(row: LedgerRow) -> Decimal | None:
+    return normalize_amount(row.invoice_total_with_tax or row.line_total_with_tax)
 
 
-def _existing_row_text(existing_row: dict[str, Any] | None) -> str:
-    if not existing_row:
-        return "已写入记录位置：未定位到具体行。"
-    parts = [f"采集表第 {existing_row.get('excel_row')} 行"]
-    if existing_row.get("source_file"):
-        parts.append(f"旧文件：{existing_row['source_file']}")
-    if existing_row.get("ticket_id"):
-        parts.append(f"票据ID：{existing_row['ticket_id']}")
-    if existing_row.get("invoice_no"):
-        parts.append(f"旧发票号码：{existing_row['invoice_no']}")
-    if existing_row.get("item_name"):
-        parts.append(f"旧项目：{existing_row['item_name']}")
-    if existing_row.get("line_amount"):
-        parts.append(f"旧金额：{existing_row['line_amount']}")
-    if existing_row.get("line_total_with_tax"):
-        parts.append(f"旧价税合计：{existing_row['line_total_with_tax']}")
-    return "；".join(parts)
+def _existing_location(existing_row: dict[str, Any] | None, row: LedgerRow) -> str:
+    if existing_row and existing_row.get("excel_row"):
+        return f"采集表第 {existing_row['excel_row']} 行"
+    if _invoice_no(row):
+        return "采集表按发票号码搜索"
+    return "采集表按文件名或金额搜索"
+
+
+def _duplicate_notice_id(row: LedgerRow) -> str:
+    key = row.invoice_key or row.invoice_unit_id or row.invoice_no or row.source_file
+    return _notice_id(str(key), "疑似重复", row.invoice_no)
 
 
 def duplicate_notice_from_ledger_row(
@@ -75,24 +63,18 @@ def duplicate_notice_from_ledger_row(
 ) -> RecognitionNotice:
     issue_type = "疑似重复"
     pages = page_text(row.page_range)
-    invoice_no = _invoice_no_text(row)
     file_name = _display_file_name(row.source_file)
-    current_content = _row_content_text(row)
-    existing_text = _existing_row_text(existing_row)
     return RecognitionNotice(
-        notice_id=_notice_id(row.invoice_line_key, issue_type, row.invoice_no),
+        notice_id=_duplicate_notice_id(row),
         source_file=file_name,
         page_range=row.page_range,
         page_text=pages,
         severity="未写入",
         issue_type=issue_type,
-        issue_field="invoice_no",
-        recognized_value=invoice_no,
-        system_judgement=(
-            f"状态：疑似重复；来源页码：{pages}；原因：文件 {file_name} 的{invoice_no}"
-            f"与已写入记录疑似重复；本次内容：{current_content}；重复位置：{existing_text}；本次未写入。"
-        ),
-        review_suggestion=f"请核对{existing_text}和本次原文件；确认重复则无需处理，确认不是重复则调整后重新导入。",
+        invoice_no=_invoice_no(row),
+        amount_total=_amount_total(row),
+        check_location=_existing_location(existing_row, row),
+        action="确认重复可忽略；不是重复请手工补录或重新导入",
         invoice_unit_id=row.invoice_unit_id,
     )
 
@@ -100,7 +82,7 @@ def duplicate_notice_from_ledger_row(
 def _notice_from_ledger_row(row: LedgerRow) -> RecognitionNotice:
     issue_type = "需复核"
     pages = page_text(row.page_range)
-    suggestion = _review_suggestion(row)
+    suggestion = _review_action(row)
     return RecognitionNotice(
         notice_id=_notice_id(row.invoice_unit_id, issue_type, row.invoice_line_key),
         source_file=_display_file_name(row.source_file),
@@ -108,10 +90,10 @@ def _notice_from_ledger_row(row: LedgerRow) -> RecognitionNotice:
         page_text=pages,
         severity="需复核",
         issue_type=issue_type,
-        issue_field=None,
-        recognized_value=None,
-        system_judgement=f"状态：需复核；来源页码：{pages}；原因：识别结果已写入采集表，但需要人工确认。",
-        review_suggestion=suggestion,
+        invoice_no=_invoice_no(row),
+        amount_total=_amount_total(row),
+        check_location="采集表已写入行",
+        action=suggestion,
         invoice_unit_id=row.invoice_unit_id,
     )
 
@@ -150,10 +132,10 @@ def _notice_from_unit_result(unit_result: dict[str, Any]) -> RecognitionNotice |
         page_text=pages,
         severity=severity,
         issue_type=issue_type,
-        issue_field=None,
-        recognized_value=None,
-        system_judgement=f"状态：{issue_type}；来源页码：{pages}；原因：{reason}",
-        review_suggestion=suggestion,
+        invoice_no=invoice_record.invoice.invoice_no,
+        amount_total=invoice_record.invoice.total_with_tax,
+        check_location=f"原文件{pages}",
+        action=suggestion if reason in suggestion else f"{reason}；{suggestion}",
         invoice_unit_id=invoice_unit.invoice_unit_id,
     )
 

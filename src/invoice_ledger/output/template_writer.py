@@ -109,7 +109,7 @@ def _cell_value(field_name: str, value: Any) -> Any:
         return _date_value(value)
     if isinstance(value, Enum):
         value = value.value
-    if field_name in {"recognition_status", "system_judgement", "issue_type"}:
+    if field_name in {"recognition_status", "issue_type"}:
         return _status_labels().get(str(value), str(value))
     if isinstance(value, Decimal):
         return value
@@ -182,11 +182,7 @@ def _row_values(row: LedgerRow) -> dict[str, Any]:
     else:
         values["digital_invoice_no"] = None
     values["issue_type"] = row.recognition_status
-    values["system_judgement"] = row.recognition_status
     values["remark"] = display_remark
-    values["review_suggestion"] = display_remark
-    values["issue_field"] = ""
-    values["recognized_value"] = ""
     return values
 
 
@@ -392,8 +388,9 @@ def write_with_template_profile(
                             if existing_row and existing_row.get("excel_row")
                             else ""
                         )
+                        invoice_no = notice.invoice_no or "发票号码未识别"
                         result.messages.append(
-                            f"疑似重复：文件 {notice.source_file}，{notice.recognized_value}，"
+                            f"疑似重复：文件 {notice.source_file}，发票号码 {invoice_no}，"
                             f"{duplicate_position}本次未写入；请查看 Excel 的“识别提示”页。"
                         )
                 result.added_rows = written
