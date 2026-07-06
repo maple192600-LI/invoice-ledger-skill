@@ -1,26 +1,7 @@
-name: invoice-ledger-skill
-entrypoint: scripts/fp_ledger.py
-installer: scripts/install_skill_env.py
-doctor: scripts/fp_doctor.py
-stage: public_release
-required_inputs:
-  - input
-  - draft-ledger
-  - config
-  - target-sheet
-  - output-dir
-optional_inputs:
-  - check-only
-  - save-evidence
-  - run-id
-  - update-existing
-  - template-profile
-  - write-in-place
-  - replace-existing
-capabilities:
-  - text-layer PDF and text invoice parsing
-  - image invoice OCR parsing with GPU or CPU OCR config
-  - single-page image/scanned PDF OCR parsing with GPU or CPU OCR config
-  - working ledger check and Excel write
-  - evidence JSON and Markdown output
-  - local first-install environment check
+interface:
+  display_name: "Invoice Ledger"
+  short_description: "本地发票 OCR 识别并写入 Excel 台账"
+  brand_color: "#D6A85D"
+  default_prompt: "Use $invoice-ledger-skill to extract local invoice files into a reviewable Excel ledger."
+policy:
+  allow_implicit_invocation: true
