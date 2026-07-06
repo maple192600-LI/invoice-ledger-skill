@@ -51,9 +51,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--save-evidence",
-        default="auto",
-        choices=["auto", "always", "never"],
-        help="Evidence mode.",
+        default="failed",
+        choices=["failed", "none"],
+        help="Unit evidence mode. failed saves only failed, unmodeled, or review-required unit evidence; none saves no unit evidence.",
     )
     parser.add_argument(
         "--json-output",
@@ -144,9 +144,11 @@ def _validate_workbook_and_profile(args: argparse.Namespace, runtime_config: dic
 
 
 def _make_run_id(input_path: str) -> str:
-    now = datetime.now().strftime("%Y%m%d_%H%M%S")
+    now = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     short_hash = sha1(f"{input_path}|{now}".encode("utf-8")).hexdigest()[:6]
     return f"run_{now}_{short_hash}"
+
+
 def _load_runtime_config(config_path: str | None) -> dict:
     if not config_path:
         return {}
@@ -199,6 +201,20 @@ def _write_json_artifact(output_dir: Path, filename: str, value: Any) -> None:
     )
 
 
+def _unit_needs_evidence(unit_result: dict[str, Any]) -> bool:
+    invoice_record = unit_result["invoice_record"]
+    invoice_unit = unit_result["invoice_unit"]
+    ledger_rows = unit_result["ledger_rows"]
+    if invoice_record.quality.status != RecognitionStatus.READY:
+        return True
+    if invoice_unit.status != RecognitionStatus.READY:
+        return True
+    return any(
+        row.recognition_status != RecognitionStatus.READY or bool(row.review_remark)
+        for row in ledger_rows
+    )
+
+
 def _user_message(run_summary: RunSummary, output_workbook: str | None) -> str:
     written = run_summary.ready_rows + run_summary.review_required_rows
     not_written = run_summary.failed_units + run_summary.unmodeled_units
@@ -230,8 +246,7 @@ def _user_message(run_summary: RunSummary, output_workbook: str | None) -> str:
         )
     if duplicate_messages:
         lines.append(f"疑似重复未写入：{len(duplicate_messages)} 张。")
-        lines.append("疑似重复原因已写入 Excel 的“识别提示”页。")
-        lines.extend(duplicate_messages)
+        lines.append("疑似重复详情已写入 Excel 的“识别提示”页。")
     if output_workbook:
         lines.append(f"目标 Excel：{output_workbook}")
     return "\n".join(lines)
@@ -353,13 +368,15 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     payload_status = _payload_status(run_summary)
     user_message = _user_message(run_summary, output_workbook)
 
-    if args.save_evidence in {"always", "auto"}:
+    _write_json_artifact(output_dir, "run_summary.json", run_summary)
+    _write_json_artifact(output_dir, "write_result.json", write_result)
+
+    if args.save_evidence == "failed":
         from .contracts import TextUnits
 
-        if len(unit_results) > 1:
-            _write_json_artifact(output_dir, "run_summary.json", run_summary)
-            _write_json_artifact(output_dir, "write_result.json", write_result)
         for index, result in enumerate(unit_results, start=1):
+            if not _unit_needs_evidence(result):
+                continue
             evidence_text_units = result["text_units"]
             if evidence_text_units is None:
                 evidence_text_units = TextUnits(
@@ -367,11 +384,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                     source="none",
                     units=[],
                 )
-            evidence_dir = output_dir
-            if len(unit_results) > 1:
-                page_part = "-".join(str(page) for page in result["invoice_unit"].page_range)
-                evidence_dir = output_dir / "units" / f"{index:03d}_page_{page_part or 'none'}"
-                evidence_dir.mkdir(parents=True, exist_ok=True)
+            page_part = "-".join(str(page) for page in result["invoice_unit"].page_range)
+            evidence_dir = output_dir / "units" / f"{index:03d}_page_{page_part or 'none'}"
+            evidence_dir.mkdir(parents=True, exist_ok=True)
             save_evidence_bundle(
                 output_dir=evidence_dir,
                 file_profile=result["file_profile"],
@@ -381,8 +396,6 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                 field_candidates=result["field_candidates"],
                 invoice_record=result["invoice_record"],
                 ledger_rows=result["ledger_rows"],
-                write_result=write_result,
-                run_summary=run_summary,
                 ocr_result=result["ocr_result"],
             )
 
@@ -433,7 +446,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         "output_workbook": output_workbook,
         "save_evidence": args.save_evidence,
         "user_message": user_message,
-        "write_messages": write_result.messages,
+        "write_message_count": len(write_result.messages),
     }
     payload = full_payload if args.json_output == "full" else summary_payload
     print(json.dumps(payload, ensure_ascii=False))

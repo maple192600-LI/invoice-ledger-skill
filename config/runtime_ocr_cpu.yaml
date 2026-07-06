@@ -1,8 +1,4 @@
 stage: stage_two_ocr_cpu
-evidence:
-  default_mode: auto
-  write_intermediate_json: true
-  write_markdown: true
 ocr:
   enabled: true
   provider: paddle

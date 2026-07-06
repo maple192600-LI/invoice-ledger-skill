@@ -108,8 +108,6 @@ def save_evidence_bundle(
     field_candidates: Any,
     invoice_record: Any,
     ledger_rows: list[Any],
-    write_result: Any,
-    run_summary: Any,
     ocr_result: Any | None = None,
 ) -> dict[str, str]:
     output_path = Path(output_dir)
@@ -123,12 +121,9 @@ def save_evidence_bundle(
         "field_candidates": _write_json(output_path, "field_candidates.json", field_candidates),
         "invoice_record": _write_json(output_path, "invoice_record.json", invoice_record),
         "ledger_rows": _write_json(output_path, "ledger_rows.json", ledger_rows),
-        "run_summary": _write_json(output_path, "run_summary.json", run_summary),
     }
     if ocr_result is not None:
         written["ocr_result"] = _write_json(output_path, "ocr_result.json", ocr_result)
-    if write_result is not None:
-        written["write_result"] = _write_json(output_path, "write_result.json", write_result)
 
     evidence_md = output_path / "evidence.md"
     evidence_md.write_text(

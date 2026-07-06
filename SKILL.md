@@ -33,7 +33,7 @@ For unfamiliar versions, check the CLI signature once:
 .\.venv\Scripts\python.exe scripts\fp_ledger.py --help
 ```
 
-Use `--input` only for one file. Use `--input-dir` for a folder. `--save-evidence` must be `auto`, `always`, or `never`.
+Use `--input` only for one file. Use `--input-dir` for a folder.
 
 ## Workbook Rule
 
@@ -60,18 +60,20 @@ Before the first formal run against a working ledger, run the cheap compatibilit
 Single file:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --json-output summary
 ```
 
 Folder:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --json-output summary
 ```
 
 Use `config\runtime_ocr_cpu.yaml` when GPU OCR is unavailable. Use `config\runtime.yaml` only for text-layer PDFs where OCR is not needed.
 
 Default writing appends to the workbook and skips likely duplicates. Use `--copy-output` only when the user explicitly wants a copied output workbook for that run.
+
+Default evidence behavior saves unit evidence only for failed, unmodeled, or review-required invoice units. Use `--save-evidence none` only when the user wants no unit evidence files.
 
 Use `--json-output full` only for debugging; it prints full records and can be expensive for Agent contexts.
 

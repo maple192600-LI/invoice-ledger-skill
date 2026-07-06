@@ -238,6 +238,7 @@ def _append_rows(ws, fields: dict[str, Any], rows: list[LedgerRow]) -> tuple[int
                 existing_draft_row_id_rows.get(row.draft_row_id)
                 or existing_invoice_line_key_rows.get(row.invoice_line_key)
                 or (existing_row_fingerprint_rows.get(row_fingerprint) if row_fingerprint is not None else None)
+                or duplicate_rows.first_row_by_invoice_number(ws, columns, row.invoice_no)
             )
             skipped_rows.append((row, duplicate_rows.existing_row_context(ws, columns, existing_row_number)))
             continue

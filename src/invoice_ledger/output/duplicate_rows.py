@@ -129,6 +129,22 @@ def existing_row_fingerprint_rows(ws, columns: dict[str, int], field_names: tupl
     return fingerprints
 
 
+def first_row_by_invoice_number(ws, columns: dict[str, int], invoice_no: str | None) -> int | None:
+    wanted = fingerprint_value(invoice_no)
+    if not wanted:
+        return None
+    candidate_columns = [
+        column
+        for field_name in ("invoice_no", "digital_invoice_no")
+        if (column := columns.get(field_name))
+    ]
+    for row_number in range(2, ws.max_row + 1):
+        for column in candidate_columns:
+            if fingerprint_value(ws.cell(row_number, column).value) == wanted:
+                return row_number
+    return None
+
+
 def sheet_text(ws, columns: dict[str, int], row_number: int, field_name: str) -> str | None:
     column = columns.get(field_name)
     if not column:
