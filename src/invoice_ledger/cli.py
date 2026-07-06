@@ -46,6 +46,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "always", "never"],
         help="Evidence mode.",
     )
+    parser.add_argument(
+        "--json-output",
+        default="summary",
+        choices=["summary", "full"],
+        help="JSON stdout detail. Use summary for agent runs; use full only for debugging.",
+    )
     parser.add_argument("--run-id", default=None, help="Optional run id.")
     parser.add_argument("--update-existing", action="store_true", help="Update existing draft rows.")
     parser.add_argument("--template-profile", default=None, help="Template profile YAML path.")
@@ -163,7 +169,7 @@ def _write_json_artifact(output_dir: Path, filename: str, value: Any) -> None:
     )
 
 
-def _user_message(run_summary: RunSummary, output_workbook: str | None) -> str:
+def _user_message(run_summary: RunSummary, output_workbook: str | None, dry_run: bool = False) -> str:
     written = run_summary.ready_rows + run_summary.review_required_rows
     not_written = run_summary.failed_units + run_summary.unmodeled_units
     duplicate_messages = [
@@ -171,6 +177,15 @@ def _user_message(run_summary: RunSummary, output_workbook: str | None) -> str:
         for message in run_summary.write_result.messages
         if "疑似重复" in message
     ] if run_summary.write_result is not None else []
+    if dry_run:
+        lines = [f"预演完成：共 {run_summary.invoice_units} 张发票。"]
+        lines.append(f"可写入：{written} 张。")
+        lines.append(f"待复核：{run_summary.review_required_rows} 张。")
+        if not_written:
+            lines.append(f"不可写入：{not_written} 张。")
+        if run_summary.review_required_rows or not_written:
+            lines.append("复核提示将在正式写入时进入 Excel 的“识别提示”页。")
+        return "\n".join(lines)
     lines = [f"本次处理完成：共 {run_summary.invoice_units} 张发票。"]
     if not_written == 0 and run_summary.review_required_rows == 0 and not duplicate_messages:
         lines[0] = f"本次处理完成：共 {run_summary.invoice_units} 张发票，已全部写入发票信息采集。"
@@ -317,7 +332,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         output_dir=str(output_dir),
     )
     payload_status = _payload_status(run_summary)
-    user_message = _user_message(run_summary, output_workbook)
+    user_message = _user_message(run_summary, output_workbook, dry_run=bool(args.dry_run))
 
     if args.save_evidence in {"always", "auto"}:
         from .contracts import TextUnits
@@ -352,7 +367,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
                 ocr_result=result["ocr_result"],
             )
 
-    payload = {
+    full_payload = {
         "run_id": run_id,
         "status": payload_status,
         "dry_run": bool(args.dry_run),
@@ -383,6 +398,27 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             for result in unit_results
         ],
     }
+    summary_payload = {
+        "run_id": run_id,
+        "status": payload_status,
+        "dry_run": bool(args.dry_run),
+        "input": args.input or args.input_dir,
+        "input_count": len(input_paths),
+        "invoice_units": run_summary.invoice_units,
+        "ready_rows": run_summary.ready_rows,
+        "review_required_rows": run_summary.review_required_rows,
+        "unmodeled_units": run_summary.unmodeled_units,
+        "failed_units": run_summary.failed_units,
+        "added_rows": write_result.added_rows,
+        "skipped_duplicate_rows": write_result.skipped_duplicate_rows,
+        "updated_rows": write_result.updated_rows,
+        "output_dir": str(output_dir),
+        "output_workbook": output_workbook,
+        "save_evidence": args.save_evidence,
+        "user_message": user_message,
+        "write_messages": write_result.messages,
+    }
+    payload = full_payload if args.json_output == "full" else summary_payload
     print(json.dumps(payload, ensure_ascii=False))
     print(user_message, file=sys.stderr)
     return 0

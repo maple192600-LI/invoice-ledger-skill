@@ -54,10 +54,10 @@ def build_install_plan(ocr: OcrMode, project_root: Path = PROJECT_ROOT) -> dict:
     venv_python = _venv_python(project_root)
     commands = [
         [sys.executable, "-m", "venv", str(project_root / ".venv")],
-        [str(venv_python), "-m", "pip", "install", "-r", "requirements.txt"],
+        [str(venv_python), "-m", "pip", "install", "-q", "-r", "requirements.txt"],
     ]
     if ocr_requirements:
-        commands.append([str(venv_python), "-m", "pip", "install", "-r", ocr_requirements])
+        commands.append([str(venv_python), "-m", "pip", "install", "-q", "-r", ocr_requirements])
     commands.append([str(venv_python), "scripts/fp_doctor.py"])
     return {
         "project_root": str(project_root),
@@ -69,9 +69,19 @@ def build_install_plan(ocr: OcrMode, project_root: Path = PROJECT_ROOT) -> dict:
     }
 
 
-def _run(command: list[str], cwd: Path) -> None:
+def _run(command: list[str], cwd: Path, verbose: bool = False) -> None:
     print(" ".join(command), flush=True)
-    subprocess.run(command, cwd=cwd, check=True)
+    if verbose:
+        subprocess.run(command, cwd=cwd, check=True)
+        return
+    result = subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+    if result.returncode == 0:
+        return
+    if result.stdout:
+        print(result.stdout[-4000:], file=sys.stderr)
+    if result.stderr:
+        print(result.stderr[-4000:], file=sys.stderr)
+    raise subprocess.CalledProcessError(result.returncode, command)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         help="OCR dependency mode. auto installs GPU OCR when NVIDIA GPU is detected, otherwise CPU OCR.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print the install plan without running it.")
+    parser.add_argument("--verbose", action="store_true", help="Stream installer subprocess output.")
     args = parser.parse_args(argv)
 
     if sys.version_info < (3, 11):
@@ -99,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(plan, ensure_ascii=False, indent=2))
         return 0
     for command in plan["commands"]:
-        _run(command, PROJECT_ROOT)
+        _run(command, PROJECT_ROOT, verbose=args.verbose)
     return 0
 
 

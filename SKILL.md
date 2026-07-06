@@ -5,57 +5,81 @@ description: Local Codex skill for extracting invoice information from PDF, imag
 
 # Invoice Ledger Skill
 
-Use this skill to process local invoice files into an Excel collection workbook. Keep user invoice files local. Do not design SaaS, account, payment, cloud storage, multi-tenant, or permission systems for this skill.
+Process local invoice files into an Excel collection workbook. Keep normal runs low-token: run deterministic scripts, read only summaries, and open evidence files only when debugging a specific failure.
 
 ## First Install
 
-Run the installer once after cloning the skill or moving it to a new computer:
+Run once after cloning, moving machines, deleting `.venv`, or changing OCR/Paddle/Python setup:
 
 ```powershell
 python scripts\install_skill_env.py --ocr auto
 ```
 
-The installer creates `.venv` inside the skill folder, installs base dependencies, detects NVIDIA GPU with `nvidia-smi`, then installs GPU OCR dependencies when GPU is available and CPU OCR dependencies when GPU is not available.
+The installer creates `.venv` in the skill folder and installs OCR dependencies there. It selects `requirements-ocr-gpu.txt` when `nvidia-smi` reports an NVIDIA GPU, otherwise `requirements-ocr-cpu.txt`. Use `--verbose` only when installation fails.
 
-Run doctor only for first install, machine changes, `.venv` rebuilds, OCR/Paddle errors, Python errors, template changes, or OCR config changes:
+Run doctor only for first install or environment/template/OCR problems:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\fp_doctor.py
 ```
 
-Normal invoice processing should not run doctor every time.
+Do not run doctor before every invoice batch.
+
+## Before Running
+
+For unfamiliar versions, check the CLI signature once:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --help
+```
+
+Use `--input` only for one file. Use `--input-dir` for a folder. `--save-evidence` must be `auto`, `always`, or `never`.
 
 ## Run
 
-Use the project virtual environment:
+Single file:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file-or-folder> --draft-ledger templates\invoice-information-collection.xlsx --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger templates\invoice-information-collection.xlsx --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
 ```
 
-If the machine has no working GPU OCR runtime, use `config\runtime_ocr_cpu.yaml`.
+Folder:
 
-The command writes recognized rows into the Excel workbook and writes JSON/Markdown evidence under `output`.
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger templates\invoice-information-collection.xlsx --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
+```
+
+Use `config\runtime_ocr_cpu.yaml` when GPU OCR is unavailable. Use `config\runtime.yaml` only for text-layer PDFs where OCR is not needed.
+
+Default writing appends to the workbook and skips likely duplicates. Use `--copy-output` only when the user explicitly wants a copied output workbook.
+
+Use `--json-output full` only for debugging; it prints full records and can be expensive for Agent contexts.
+
+## Output Discipline
+
+Treat stdout summary and the final Chinese stderr message as the normal result. Do not paste full `run_summary.json`, evidence JSON, pip logs, or OCR progress logs into the conversation unless a failure requires that file.
+
+When a long OCR run is still executing, wait for completion and inspect the final summary instead of repeatedly pulling full task logs.
 
 ## Template
 
-The default blank workbook is:
+Default blank workbook:
 
 ```text
 templates/invoice-information-collection.xlsx
 ```
 
-Users may replace this workbook with their own collection template. When column names, sheet names, or required fields change, update:
+Users may replace this workbook. If sheet names, column names, required fields, or mappings change, update:
 
 ```text
 config/template_profiles/current.yaml
 ```
 
-Do not hardcode a user's private workbook layout into source code.
+Keep repository file names ASCII for cross-agent compatibility. Keep workbook sheet names and headers in Chinese when needed.
 
 ## Invoice Types
 
-Supported invoice schemas live in:
+Schemas live in:
 
 ```text
 schemas/
@@ -65,4 +89,4 @@ To add a user-specific invoice type, add a YAML schema in `schemas/` and registe
 
 ## Boundaries
 
-This skill does local extraction and Excel writing only. It does not file taxes, approve reimbursements, provide legal/accounting advice, upload invoices, or guarantee recognition accuracy. Low-confidence and unsupported results must be surfaced as review items.
+This skill does local extraction and Excel writing. Low-confidence and unsupported results must be surfaced as review items.
