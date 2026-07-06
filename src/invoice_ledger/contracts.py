@@ -35,7 +35,6 @@ class WriteAction(str, Enum):
     SKIPPED_DUPLICATE = "skipped_duplicate"
     UPDATED = "updated"
     FAILED = "failed"
-    DRY_RUN = "dry_run"
 
 
 class FileType(str, Enum):

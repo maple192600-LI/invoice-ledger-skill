@@ -10,7 +10,7 @@ required_inputs:
   - target-sheet
   - output-dir
 optional_inputs:
-  - dry-run
+  - check-only
   - save-evidence
   - run-id
   - update-existing
@@ -21,6 +21,6 @@ capabilities:
   - text-layer PDF and text invoice parsing
   - image invoice OCR parsing with GPU or CPU OCR config
   - single-page image/scanned PDF OCR parsing with GPU or CPU OCR config
-  - draft ledger dry-run and Excel write
+  - working ledger check and Excel write
   - evidence JSON and Markdown output
   - local first-install environment check

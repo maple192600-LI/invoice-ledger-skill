@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -94,7 +93,6 @@ def main(argv: list[str] | None = None) -> int:
         default="auto",
         help="OCR dependency mode. auto installs GPU OCR when NVIDIA GPU is detected, otherwise CPU OCR.",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Print the install plan without running it.")
     parser.add_argument("--verbose", action="store_true", help="Stream installer subprocess output.")
     args = parser.parse_args(argv)
 
@@ -106,9 +104,6 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    if args.dry_run:
-        print(json.dumps(plan, ensure_ascii=False, indent=2))
-        return 0
     for command in plan["commands"]:
         _run(command, PROJECT_ROOT, verbose=args.verbose)
     return 0

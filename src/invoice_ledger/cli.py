@@ -16,7 +16,6 @@ import yaml
 from .contracts import (
     RecognitionStatus,
     RunSummary,
-    WriteAction,
     WriteResult,
 )
 from .output.evidence import save_evidence_bundle
@@ -35,11 +34,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--input", required=False, help="Input invoice file path.")
     parser.add_argument("--input-dir", required=False, help="Directory containing invoice files.")
-    parser.add_argument("--draft-ledger", required=False, help="Draft ledger Excel workbook path.")
+    parser.add_argument(
+        "--draft-ledger",
+        "--workbook",
+        dest="draft_ledger",
+        required=False,
+        help="Working ledger Excel workbook path. The file is written in place unless --copy-output is used.",
+    )
     parser.add_argument("--config", required=False, help="Runtime config YAML path.")
     parser.add_argument("--target-sheet", required=False, help="Target worksheet name.")
     parser.add_argument("--output-dir", required=False, help="Directory for evidence and JSON output.")
-    parser.add_argument("--dry-run", action="store_true", help="Preview recognition and evidence output without writing to the workbook.")
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Validate arguments, input paths, config, and workbook/template compatibility without OCR or Excel writing.",
+    )
     parser.add_argument(
         "--save-evidence",
         default="auto",
@@ -94,29 +103,50 @@ def _validate_required_runtime_args(args: argparse.Namespace) -> str | None:
     return None
 
 
+def _validate_input_paths(args: argparse.Namespace) -> str | None:
+    if args.input:
+        input_path = Path(args.input)
+        if not input_path.is_file():
+            return f"Input file not found: {input_path}"
+        if input_path.suffix.lower() not in SUPPORTED_INPUT_SUFFIXES:
+            return f"Unsupported input file type: {input_path.suffix}"
+        return None
+    input_dir = Path(args.input_dir)
+    if not input_dir.is_dir():
+        return f"Input directory not found: {input_dir}"
+    return None
+
+
+def _validate_workbook_and_profile(args: argparse.Namespace, runtime_config: dict) -> dict[str, Any] | str:
+    template_profile = args.template_profile or runtime_config.get("excel", {}).get("template_profile")
+    if not template_profile:
+        return "Missing template profile for Excel write."
+    source_workbook = Path(args.draft_ledger)
+    if not source_workbook.is_file():
+        return f"Working ledger workbook not found: {source_workbook}"
+    template_profile_config = load_template_profile(template_profile)
+    profile_detail_sheet = _profile_detail_sheet(template_profile_config)
+    if profile_detail_sheet and args.target_sheet != profile_detail_sheet:
+        return f"Target sheet {args.target_sheet!r} does not match template profile detail sheet {profile_detail_sheet!r}."
+    drift_report = validate_template_workbook(source_workbook, template_profile_config)
+    if drift_report.get("blocked_write") is True or drift_report["status"] != "passed":
+        return json.dumps(
+            {
+                "message": "Template workbook does not match profile",
+                "template_drift_report": drift_report,
+            },
+            ensure_ascii=False,
+        )
+    return {
+        "template_profile": template_profile,
+        "template_drift_report": drift_report,
+    }
+
+
 def _make_run_id(input_path: str) -> str:
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
     short_hash = sha1(f"{input_path}|{now}".encode("utf-8")).hexdigest()[:6]
     return f"run_{now}_{short_hash}"
-
-
-def _dry_run_write_result(run_id: str, target_sheet: str, row_count: int) -> WriteResult:
-    return WriteResult(
-        run_id=run_id,
-        target_sheet=target_sheet,
-        actions=[
-            {
-                "action": WriteAction.DRY_RUN.value,
-                "rows": row_count,
-                "message": "dry-run only; Excel not modified",
-            }
-        ],
-        added_rows=0,
-        skipped_duplicate_rows=0,
-        updated_rows=0,
-    )
-
-
 def _load_runtime_config(config_path: str | None) -> dict:
     if not config_path:
         return {}
@@ -169,7 +199,7 @@ def _write_json_artifact(output_dir: Path, filename: str, value: Any) -> None:
     )
 
 
-def _user_message(run_summary: RunSummary, output_workbook: str | None, dry_run: bool = False) -> str:
+def _user_message(run_summary: RunSummary, output_workbook: str | None) -> str:
     written = run_summary.ready_rows + run_summary.review_required_rows
     not_written = run_summary.failed_units + run_summary.unmodeled_units
     duplicate_messages = [
@@ -177,15 +207,6 @@ def _user_message(run_summary: RunSummary, output_workbook: str | None, dry_run:
         for message in run_summary.write_result.messages
         if "疑似重复" in message
     ] if run_summary.write_result is not None else []
-    if dry_run:
-        lines = [f"预演完成：共 {run_summary.invoice_units} 张发票。"]
-        lines.append(f"可写入：{written} 张。")
-        lines.append(f"待复核：{run_summary.review_required_rows} 张。")
-        if not_written:
-            lines.append(f"不可写入：{not_written} 张。")
-        if run_summary.review_required_rows or not_written:
-            lines.append("复核提示将在正式写入时进入 Excel 的“识别提示”页。")
-        return "\n".join(lines)
     lines = [f"本次处理完成：共 {run_summary.invoice_units} 张发票。"]
     if not_written == 0 and run_summary.review_required_rows == 0 and not duplicate_messages:
         lines[0] = f"本次处理完成：共 {run_summary.invoice_units} 张发票，已全部写入发票信息采集。"
@@ -225,21 +246,43 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         print(validation_error, file=sys.stderr)
         return 2
 
+    input_error = _validate_input_paths(args)
+    if input_error:
+        print(input_error, file=sys.stderr)
+        return 2
+
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    run_id = args.run_id or _make_run_id(args.input)
+    input_source = args.input or args.input_dir
+    run_id = args.run_id or _make_run_id(input_source)
     processed_at = datetime.now().replace(microsecond=0).isoformat()
 
     runtime_config = _load_runtime_config(args.config)
-    template_profile = args.template_profile or runtime_config.get("excel", {}).get("template_profile")
-    if not args.dry_run and not template_profile:
-        print("Missing template profile for Excel write.", file=sys.stderr)
+    workbook_validation = _validate_workbook_and_profile(args, runtime_config)
+    if isinstance(workbook_validation, str):
+        print(workbook_validation, file=sys.stderr)
         return 2
+    template_profile = workbook_validation["template_profile"]
     input_paths = _input_paths(args)
     if not input_paths:
         print("No supported invoice input files found in input directory.", file=sys.stderr)
         return 2
+    if args.check_only:
+        payload = {
+            "status": "passed",
+            "check_only": True,
+            "input": input_source,
+            "input_count": len(input_paths),
+            "draft_ledger": args.draft_ledger,
+            "target_sheet": args.target_sheet,
+            "output_dir": str(output_dir),
+            "template_profile": template_profile,
+            "message": "Check passed: arguments, input paths, config, and workbook/template compatibility are valid. OCR was not run and Excel was not modified.",
+        }
+        print(json.dumps(payload, ensure_ascii=False))
+        print("检查通过：参数、输入、配置和工作台账模板兼容性可用。未运行 OCR，未修改 Excel。", file=sys.stderr)
+        return 0
     input_results = [
         process_invoice_input(input_path, runtime_config, run_id, processed_at)
         for input_path in input_paths
@@ -263,51 +306,27 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     recognition_notices = build_recognition_notices(unit_results, ledger_rows)
 
     output_workbook: str | None = None
-    if args.dry_run:
-        write_result = _dry_run_write_result(run_id, args.target_sheet, len(ledger_rows))
+    source_workbook = Path(args.draft_ledger)
+    if args.copy_output:
+        output_workbook_path = output_dir / f"{source_workbook.stem}.{run_id}.draft.xlsx"
+        if output_workbook_path.exists():
+            print(
+                f"Refusing to overwrite existing output workbook: {output_workbook_path}",
+                file=sys.stderr,
+            )
+            return 2
+        copy2(source_workbook, output_workbook_path)
     else:
-        source_workbook = Path(args.draft_ledger)
-        template_profile_config = load_template_profile(template_profile)
-        profile_detail_sheet = _profile_detail_sheet(template_profile_config)
-        if profile_detail_sheet and args.target_sheet != profile_detail_sheet:
-            print(
-                f"Target sheet {args.target_sheet!r} does not match template profile detail sheet {profile_detail_sheet!r}.",
-                file=sys.stderr,
-            )
-            return 2
-        drift_report = validate_template_workbook(source_workbook, template_profile_config)
-        if drift_report.get("blocked_write") is True or drift_report["status"] != "passed":
-            print(
-                json.dumps(
-                    {
-                        "message": "Template workbook does not match profile",
-                        "template_drift_report": drift_report,
-                    },
-                    ensure_ascii=False,
-                ),
-                file=sys.stderr,
-            )
-            return 2
-        if args.copy_output:
-            output_workbook_path = output_dir / f"{source_workbook.stem}.{run_id}.draft.xlsx"
-            if output_workbook_path.exists():
-                print(
-                    f"Refusing to overwrite existing output workbook: {output_workbook_path}",
-                    file=sys.stderr,
-                )
-                return 2
-            copy2(source_workbook, output_workbook_path)
-        else:
-            output_workbook_path = source_workbook
-        write_result = write_with_template_profile(
-            workbook_path=output_workbook_path,
-            template_profile_path=template_profile,
-            ledger_rows=ledger_rows,
-            recognition_notices=recognition_notices,
-            run_id=run_id,
-            clear_existing=args.replace_existing,
-        )
-        output_workbook = str(output_workbook_path)
+        output_workbook_path = source_workbook
+    write_result = write_with_template_profile(
+        workbook_path=output_workbook_path,
+        template_profile_path=template_profile,
+        ledger_rows=ledger_rows,
+        recognition_notices=recognition_notices,
+        run_id=run_id,
+        clear_existing=args.replace_existing,
+    )
+    output_workbook = str(output_workbook_path)
     ready_rows = sum(1 for row in ledger_rows if row.recognition_status == RecognitionStatus.READY)
     review_required_rows = sum(
         1 for row in ledger_rows if row.recognition_status == RecognitionStatus.REVIEW_REQUIRED
@@ -332,7 +351,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         output_dir=str(output_dir),
     )
     payload_status = _payload_status(run_summary)
-    user_message = _user_message(run_summary, output_workbook, dry_run=bool(args.dry_run))
+    user_message = _user_message(run_summary, output_workbook)
 
     if args.save_evidence in {"always", "auto"}:
         from .contracts import TextUnits
@@ -370,7 +389,6 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     full_payload = {
         "run_id": run_id,
         "status": payload_status,
-        "dry_run": bool(args.dry_run),
         "input": args.input or args.input_dir,
         "input_count": len(input_paths),
         "draft_ledger": args.draft_ledger,
@@ -401,7 +419,6 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     summary_payload = {
         "run_id": run_id,
         "status": payload_status,
-        "dry_run": bool(args.dry_run),
         "input": args.input or args.input_dir,
         "input_count": len(input_paths),
         "invoice_units": run_summary.invoice_units,

@@ -55,7 +55,7 @@ OCR 依赖：
 1. Agent 读取用户提供的发票文件或文件夹。
 2. Skill 判断输入类型，能读文本层就直接解析，需要 OCR 时调用 PaddleOCR。
 3. 识别结果按 `schemas/` 里的票种规则结构化。
-4. 结果写入 `templates/invoice-information-collection.xlsx`。
+4. 用户从空白模板复制出一个工作台账，结果追加写入这个工作台账。
 5. 低置信度、未支持票种和异常字段写入复核提示。
 
 ## 模板
@@ -71,6 +71,8 @@ templates/invoice-information-collection.xlsx
 ```text
 config/template_profiles/current.yaml
 ```
+
+正式处理发票时，不要直接写入 `templates/` 里的空白模板。先复制一份作为工作台账，后续多批发票继续指向同一个工作台账，系统会追加写入并跳过疑似重复记录。
 
 ## 新增发票种类
 

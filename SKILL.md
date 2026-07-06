@@ -5,7 +5,7 @@ description: Local Codex skill for extracting invoice information from PDF, imag
 
 # Invoice Ledger Skill
 
-Process local invoice files into an Excel collection workbook. Keep normal runs low-token: run deterministic scripts, read only summaries, and open evidence files only when debugging a specific failure.
+Process local invoice files into a working Excel collection workbook. Keep normal runs low-token: run deterministic scripts, read only summaries, and open evidence files only when debugging a specific failure.
 
 ## First Install
 
@@ -35,23 +35,43 @@ For unfamiliar versions, check the CLI signature once:
 
 Use `--input` only for one file. Use `--input-dir` for a folder. `--save-evidence` must be `auto`, `always`, or `never`.
 
+## Workbook Rule
+
+Keep the blank workbook as a source template only:
+
+```text
+templates/invoice-information-collection.xlsx
+```
+
+For real work, copy the blank workbook once to a user/output working ledger, then keep pointing `--draft-ledger` or `--workbook` to that same working ledger for later batches. The writer appends rows and skips likely duplicates by default.
+
+Do not write directly into `templates/`. Do not create a fresh workbook for each invoice batch unless the user explicitly wants a separate ledger.
+
+Before the first formal run against a working ledger, run the cheap compatibility check:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --check-only --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output
+```
+
+`--check-only` validates arguments, input paths, config, and workbook/template compatibility. It does not run OCR and does not modify Excel.
+
 ## Run
 
 Single file:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger templates\invoice-information-collection.xlsx --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
 ```
 
 Folder:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger templates\invoice-information-collection.xlsx --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence always --json-output summary
 ```
 
 Use `config\runtime_ocr_cpu.yaml` when GPU OCR is unavailable. Use `config\runtime.yaml` only for text-layer PDFs where OCR is not needed.
 
-Default writing appends to the workbook and skips likely duplicates. Use `--copy-output` only when the user explicitly wants a copied output workbook.
+Default writing appends to the workbook and skips likely duplicates. Use `--copy-output` only when the user explicitly wants a copied output workbook for that run.
 
 Use `--json-output full` only for debugging; it prints full records and can be expensive for Agent contexts.
 
