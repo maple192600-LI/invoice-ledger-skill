@@ -36,5 +36,9 @@ jobs:
           --input README.md
           --draft-ledger templates\invoice-information-collection.xlsx
           --config config\runtime.yaml
-          --target-sheet 发票信息采集
           --output-dir output
+
+      - name: Run text-only Excel write
+        run: |
+          Copy-Item templates\invoice-information-collection.xlsx output\smoke-ledger.xlsx
+          python scripts\fp_ledger.py --input README.md --draft-ledger output\smoke-ledger.xlsx --config config\runtime.yaml --output-dir output\smoke --json-output summary

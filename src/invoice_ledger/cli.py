@@ -13,6 +13,7 @@ from typing import Any, Sequence
 
 import yaml
 
+from ._paths import PROJECT_ROOT
 from .contracts import (
     RecognitionStatus,
     RunSummary,
@@ -26,6 +27,7 @@ from .output.template_writer import write_with_template_profile
 
 
 SUPPORTED_INPUT_SUFFIXES = {".pdf", ".txt", ".md", ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
+AUTO_OCR_CONFIG = "config/runtime_ocr_auto.yaml"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -86,7 +88,6 @@ def _validate_required_runtime_args(args: argparse.Namespace) -> str | None:
     required = {
         "draft_ledger": "draft ledger",
         "config": "config",
-        "target_sheet": "target sheet",
         "output_dir": "output dir",
     }
     missing = [label for name, label in required.items() if not getattr(args, name)]
@@ -124,7 +125,8 @@ def _validate_workbook_and_profile(args: argparse.Namespace, runtime_config: dic
     source_workbook = Path(args.draft_ledger)
     if not source_workbook.is_file():
         return f"Working ledger workbook not found: {source_workbook}"
-    template_profile_config = load_template_profile(template_profile)
+    template_profile_path = _project_path(template_profile)
+    template_profile_config = load_template_profile(template_profile_path)
     profile_detail_sheet = _profile_detail_sheet(template_profile_config)
     if profile_detail_sheet and args.target_sheet != profile_detail_sheet:
         return f"Target sheet {args.target_sheet!r} does not match template profile detail sheet {profile_detail_sheet!r}."
@@ -138,7 +140,7 @@ def _validate_workbook_and_profile(args: argparse.Namespace, runtime_config: dic
             ensure_ascii=False,
         )
     return {
-        "template_profile": template_profile,
+        "template_profile": str(template_profile_path),
         "template_drift_report": drift_report,
     }
 
@@ -149,10 +151,44 @@ def _make_run_id(input_path: str) -> str:
     return f"run_{now}_{short_hash}"
 
 
+def _project_path(path: str | Path) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else PROJECT_ROOT / candidate
+
+
+def _has_nvidia_gpu() -> bool:
+    from shutil import which
+    import subprocess
+
+    nvidia_smi = which("nvidia-smi")
+    if not nvidia_smi:
+        return False
+    result = subprocess.run(
+        [nvidia_smi, "--query-gpu=name", "--format=csv,noheader"],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _resolve_config_path(config_path: str | None) -> Path | None:
+    if not config_path:
+        return None
+    candidate = _project_path(config_path)
+    if Path(config_path).as_posix() == AUTO_OCR_CONFIG or candidate == PROJECT_ROOT / AUTO_OCR_CONFIG:
+        selected = "config/runtime_ocr_gpu.yaml" if _has_nvidia_gpu() else "config/runtime_ocr_cpu.yaml"
+        return _project_path(selected)
+    return candidate
+
+
 def _load_runtime_config(config_path: str | None) -> dict:
     if not config_path:
         return {}
-    with Path(config_path).open("r", encoding="utf-8") as file:
+    resolved_config = _resolve_config_path(config_path)
+    with resolved_config.open("r", encoding="utf-8") as file:
         loaded = yaml.safe_load(file)
     return loaded if isinstance(loaded, dict) else {}
 
@@ -274,6 +310,11 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     processed_at = datetime.now().replace(microsecond=0).isoformat()
 
     runtime_config = _load_runtime_config(args.config)
+    if not args.target_sheet:
+        args.target_sheet = runtime_config.get("excel", {}).get("default_target_sheet")
+    if not args.target_sheet:
+        print("Missing target sheet. Provide --target-sheet or set excel.default_target_sheet in config.", file=sys.stderr)
+        return 2
     workbook_validation = _validate_workbook_and_profile(args, runtime_config)
     if isinstance(workbook_validation, str):
         print(workbook_validation, file=sys.stderr)

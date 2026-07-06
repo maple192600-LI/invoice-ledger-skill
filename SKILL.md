@@ -17,6 +17,8 @@ python scripts\install_skill_env.py --ocr auto
 
 The installer creates `.venv` in the skill folder and installs OCR dependencies there. It selects `requirements-ocr-gpu.txt` when `nvidia-smi` reports an NVIDIA GPU, otherwise `requirements-ocr-cpu.txt`. Use `--verbose` only when installation fails.
 
+Run install from the skill root. Runtime scripts switch to the skill root automatically when invoked by absolute path.
+
 Run doctor only for first install or environment/template/OCR problems:
 
 ```powershell
@@ -50,7 +52,7 @@ Do not write directly into `templates/`. Do not create a fresh workbook for each
 Before the first formal run against a working ledger, run the cheap compatibility check:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --check-only --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --check-only --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output
 ```
 
 `--check-only` validates arguments, input paths, config, and workbook/template compatibility. It does not run OCR and does not modify Excel.
@@ -60,22 +62,24 @@ Before the first formal run against a working ledger, run the cheap compatibilit
 Single file:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --json-output summary
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output --json-output summary
 ```
 
 Folder:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --json-output summary
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output --json-output summary
 ```
 
-Use `config\runtime_ocr_cpu.yaml` when GPU OCR is unavailable. Use `config\runtime.yaml` only for text-layer PDFs where OCR is not needed.
+Use `config\runtime_ocr_auto.yaml` for OCR jobs. It selects GPU when `nvidia-smi` reports an NVIDIA GPU, otherwise CPU. Use `config\runtime.yaml` only for text-layer PDFs where OCR is not needed.
 
 Default writing appends to the workbook and skips likely duplicates. Use `--copy-output` only when the user explicitly wants a copied output workbook for that run.
 
 Default evidence behavior saves unit evidence only for failed, unmodeled, or review-required invoice units. Use `--save-evidence none` only when the user wants no unit evidence files.
 
 Use `--json-output full` only for debugging; it prints full records and can be expensive for Agent contexts.
+
+Keep `--output-dir` under `output/`, `outputs/`, `runs/`, or `debug-output/` inside the skill folder unless the user explicitly chooses another location. Output summaries and evidence can contain invoice text.
 
 ## Output Discipline
 

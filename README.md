@@ -38,7 +38,7 @@ OCR 依赖：
 
 ## 安装这个 Skill
 
-这是一个按 Codex Skill 结构组织的 Skill。Claude Code、OpenClaw、Hermes、WorkBuddy 等 Agent 环境只要支持 Skill 或类似的本地能力包机制，通常也可以使用本项目；下载后按对应 Agent 的 Skill 规范调整 `SKILL.md` 入口说明即可。
+这是一个按 Codex Skill 结构组织的 Skill。Claude Code、OpenClaw、Hermes、WorkBuddy 等 Agent 环境如需使用，应按对应 Agent 的 Skill 规范调整 `SKILL.md` 入口说明；当前仓库只对 Codex Skill 结构做发布验证。
 
 把下面这条指令交给 Agent 执行即可：
 
@@ -59,6 +59,8 @@ OCR 依赖：
 5. 低置信度、未支持票种和异常字段写入复核提示。
 
 默认输出保持精简：根目录保留运行摘要和写入摘要；只有失败、未建模或需要复核的发票页会生成 `units/` 证据文件。
+
+运行摘要和证据文件可能包含发票文本。默认建议把 `--output-dir` 放在仓库根目录的 `output/`、`outputs/`、`runs/` 或 `debug-output/` 下，这些目录和常见证据文件已加入 `.gitignore`。
 
 ## 模板
 

@@ -27,6 +27,7 @@ REQUIRED_FILES = [
     "SKILL.md",
     "scripts/fp_ledger.py",
     "config/runtime.yaml",
+    "config/runtime_ocr_auto.yaml",
     "config/runtime_ocr_cpu.yaml",
     "config/runtime_ocr_gpu.yaml",
     "config/template_profiles/current.yaml",
@@ -121,7 +122,7 @@ def _dependency_checks() -> list[dict[str, Any]]:
 
 def _config_checks(project_root: Path) -> list[dict[str, Any]]:
     checks = []
-    for relative in ["config/runtime.yaml", "config/runtime_ocr_cpu.yaml", "config/runtime_ocr_gpu.yaml"]:
+    for relative in ["config/runtime.yaml", "config/runtime_ocr_auto.yaml", "config/runtime_ocr_cpu.yaml", "config/runtime_ocr_gpu.yaml"]:
         config, error = _load_yaml(project_root / relative)
         checks.append(
             _check(
