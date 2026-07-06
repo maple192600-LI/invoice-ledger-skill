@@ -55,7 +55,7 @@ OCR 依赖：
 1. Agent 读取用户提供的发票文件或文件夹。
 2. Skill 判断输入类型，能读文本层就直接解析，需要 OCR 时调用 PaddleOCR。
 3. 识别结果按 `schemas/` 里的票种规则结构化。
-4. 结果写入 `templates/发票信息采集.xlsx`。
+4. 结果写入 `templates/invoice-information-collection.xlsx`。
 5. 低置信度、未支持票种和异常字段写入复核提示。
 
 ## 模板
@@ -63,7 +63,7 @@ OCR 依赖：
 默认空白模板：
 
 ```text
-templates/发票信息采集.xlsx
+templates/invoice-information-collection.xlsx
 ```
 
 用户可以替换这个模板。只要改了工作表名、列名、必填字段或字段映射，就同步更新：
@@ -89,7 +89,7 @@ schemas/
 - `src/`：识别、解析、校验、写入逻辑
 - `schemas/`：票种 Schema
 - `config/`：运行配置、OCR 配置、模板 profile
-- `templates/发票信息采集.xlsx`：可替换的空白采集模板
+- `templates/invoice-information-collection.xlsx`：可替换的空白采集模板
 
 ## 边界
 

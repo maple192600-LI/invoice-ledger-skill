@@ -30,7 +30,7 @@ REQUIRED_FILES = [
     "config/runtime_ocr_cpu.yaml",
     "config/runtime_ocr_gpu.yaml",
     "config/template_profiles/current.yaml",
-    "templates/发票信息采集.xlsx",
+    "templates/invoice-information-collection.xlsx",
 ]
 
 
@@ -135,7 +135,7 @@ def _config_checks(project_root: Path) -> list[dict[str, Any]]:
 
 def _template_check(project_root: Path) -> list[dict[str, Any]]:
     profile_path = project_root / "config/template_profiles/current.yaml"
-    workbook_path = project_root / "templates/发票信息采集.xlsx"
+    workbook_path = project_root / "templates/invoice-information-collection.xlsx"
     if not profile_path.exists() or not workbook_path.exists():
         return [
             _check(

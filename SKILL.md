@@ -30,7 +30,7 @@ Normal invoice processing should not run doctor every time.
 Use the project virtual environment:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file-or-folder> --draft-ledger templates\发票信息采集.xlsx --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file-or-folder> --draft-ledger templates\invoice-information-collection.xlsx --config config\runtime_ocr_gpu.yaml --target-sheet 发票信息采集 --output-dir output --save-evidence
 ```
 
 If the machine has no working GPU OCR runtime, use `config\runtime_ocr_cpu.yaml`.
@@ -42,7 +42,7 @@ The command writes recognized rows into the Excel workbook and writes JSON/Markd
 The default blank workbook is:
 
 ```text
-templates/发票信息采集.xlsx
+templates/invoice-information-collection.xlsx
 ```
 
 Users may replace this workbook with their own collection template. When column names, sheet names, or required fields change, update:

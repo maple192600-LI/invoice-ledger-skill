@@ -1,7 +1,7 @@
 template_id: invoice-information-collection
 template_version: "2026-07-03"
 description: Current invoice information collection workbook profile.
-template_path: templates/发票信息采集.xlsx
+template_path: templates/invoice-information-collection.xlsx
 sheets:
   detail:
     name: 发票信息采集
