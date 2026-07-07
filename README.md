@@ -90,6 +90,7 @@ schemas/
 
 ## 仓库内容
 
+- `INDEX.md`：仓库维护索引，按修改目标定位文件
 - `SKILL.md`：给 Codex 看的 Skill 使用规则
 - `scripts/`：安装器、环境检查、发票处理入口
 - `src/`：识别、解析、校验、写入逻辑
