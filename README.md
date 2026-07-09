@@ -4,6 +4,8 @@
 
 <img src="assets/banner.png" alt="invoice-ledger-skill banner" width="100%">
 
+<img src="assets/wechat-search.png" alt="微信搜索老李AI茶馆" width="100%">
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 ## 这是什么
