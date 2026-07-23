@@ -25,6 +25,21 @@ def _unit_id(profile: FileProfile, page_range: list[int]) -> str:
 
 
 def build_invoice_units(profile: FileProfile) -> list[InvoiceUnit]:
+    if profile.status == RecognitionStatus.READY and profile.unit_strategy == "merge_by_invoice_no":
+        # 数电票跨页续表：合并为单个发票单元，page_range 覆盖全部页；
+        # 下游 _extract_pdf_text 会遍历 page_range，把跨页明细拼进同一文本池。
+        page_range = [page.page for page in profile.pages] if profile.pages else []
+        return [
+            InvoiceUnit(
+                invoice_unit_id=_unit_id(profile, page_range),
+                source_file=profile.input_file,
+                page_range=page_range,
+                unit_type="pdf_page",
+                status=RecognitionStatus.READY,
+                messages=[],
+            )
+        ]
+
     if profile.status == RecognitionStatus.READY and profile.unit_strategy == "split_by_page":
         units: list[InvoiceUnit] = []
         for page in profile.pages:

@@ -18,7 +18,7 @@ from ._helpers import (
     _looks_like_spec,
     _normalize_ocr_item,
 )
-from ._line_item_ocr_table import _extract_ocr_table_items
+from ._line_item_ocr_table import _extract_digital_text_table_items, _extract_ocr_table_items
 from ._line_item_sequence_helpers import (
     _building_sequence_parts,
     _is_textual_spec_before_rate_and_unit,
@@ -343,6 +343,15 @@ def _extract_items_from_text_units(
                 _add(fields, "items", value, f"ocr table line item {index}", 0.86)
             return
     _extract_items(_lines(text_units), fields, schema)
+    if text_units.source != "ocr" and not fields.get("items"):
+        # 文本层数电票序列解析失败(0 items)：用坐标表格解析救回列顺序错乱的票
+        # （get_text("blocks") 列序错乱致 _extract_sequence_item 失败，如三一泵路/货物运输）
+        coord_items = _extract_digital_text_table_items(text_units, schema)
+        for index, item in enumerate(coord_items, start=1):
+            item = _normalize_ocr_item(item, schema)
+            item["line_no"] = index
+            value = json.dumps(item, ensure_ascii=False, sort_keys=True)
+            _add(fields, "items", value, f"digital table line item {index}", 0.86)
 
 
 def _item_tax_rates(fields: dict[str, list[FieldCandidate]]) -> list[str]:

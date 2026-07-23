@@ -178,6 +178,8 @@ class TextUnits(ContractModel):
     invoice_unit_id: str
     source: str
     units: list[TextUnit] = Field(default_factory=list)
+    source_file: str | None = None
+    page_range: list[int] = Field(default_factory=list)
 
 
 class OcrTextBlock(ContractModel):

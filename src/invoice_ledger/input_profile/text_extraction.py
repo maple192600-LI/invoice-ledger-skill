@@ -92,7 +92,10 @@ def _extract_pdf_text(
     finally:
         if pdf_context is None:
             doc.close()
-    return normalize_text_blocks(unit.invoice_unit_id, "pdf_text", blocks)
+    result = normalize_text_blocks(unit.invoice_unit_id, "pdf_text", blocks)
+    return result.model_copy(
+        update={"source_file": unit.source_file, "page_range": list(unit.page_range)}
+    )
 
 
 def extract_ocr_text_units(
