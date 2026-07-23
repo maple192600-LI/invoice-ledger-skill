@@ -104,8 +104,25 @@ def _date_value(value: Any) -> date | Any:
     return date.fromisoformat(normalized) if normalized else value
 
 
+_DATETIME_FORMATS = ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M")
+
+
+def _datetime_value(value: Any) -> datetime | Any:
+    if value in {None, ""}:
+        return value
+    text = str(value).strip()
+    for fmt in _DATETIME_FORMATS:
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return _date_value(value)
+
+
 def _cell_value(field_name: str, value: Any) -> Any:
-    if field_name in {"processed_at", "invoice_date", "correction_time"}:
+    if field_name == "processed_at":
+        return _datetime_value(value)
+    if field_name in {"invoice_date", "correction_time"}:
         return _date_value(value)
     if isinstance(value, Enum):
         value = value.value
@@ -215,6 +232,7 @@ def _append_rows(ws, fields: dict[str, Any], rows: list[LedgerRow]) -> tuple[int
         columns,
         ROW_FINGERPRINT_FIELDS,
     )
+    weak_duplicate_rows: list[tuple[LedgerRow, dict[str, Any]]] = []
     for row in rows:
         values = _row_values(row)
         row_fingerprint = duplicate_rows.row_fingerprint_from_values(
@@ -224,33 +242,45 @@ def _append_rows(ws, fields: dict[str, Any], rows: list[LedgerRow]) -> tuple[int
             ROW_FINGERPRINT_FIELDS,
             _value_for_field,
         )
-        if (
+        weak_identity = not row.invoice_no and not _is_digital_vat_invoice(row)
+        is_duplicate = (
             row.draft_row_id in existing_draft_row_ids
             or row.invoice_line_key in existing_invoice_line_keys
             or (row_fingerprint is not None and row_fingerprint in existing_row_fingerprints)
-        ):
-            skipped += 1
+        )
+        if is_duplicate:
             existing_row_number = (
                 existing_draft_row_id_rows.get(row.draft_row_id)
                 or existing_invoice_line_key_rows.get(row.invoice_line_key)
                 or (existing_row_fingerprint_rows.get(row_fingerprint) if row_fingerprint is not None else None)
                 or duplicate_rows.first_row_by_invoice_number(ws, columns, row.invoice_no)
             )
-            skipped_rows.append((row, duplicate_rows.existing_row_context(ws, columns, existing_row_number)))
-            continue
+            existing_context = duplicate_rows.existing_row_context(ws, columns, existing_row_number)
+            if weak_identity:
+                row.context_remark = "；".join(
+                    part for part in [row.context_remark, "疑似重复（弱身份票），请人工确认"] if part
+                )
+                weak_duplicate_rows.append((row, existing_context))
+            else:
+                skipped += 1
+                skipped_rows.append((row, existing_context))
+                continue
         target_row = _last_data_row(ws) + 1
         for field_name, column in columns.items():
             spec = fields.get(field_name, {})
-            ws.cell(target_row, column).value = _value_for_field(
+            cell = ws.cell(target_row, column)
+            cell.value = _value_for_field(
                 field_name,
                 spec if isinstance(spec, dict) else {},
                 values,
                 target_row,
             )
+            if isinstance(cell.value, datetime):
+                cell.number_format = "YYYY-MM-DD HH:MM"
         existing_draft_row_ids.add(row.draft_row_id)
         existing_invoice_line_keys.add(row.invoice_line_key)
         written += 1
-    return written, skipped, skipped_rows
+    return written, skipped, skipped_rows, weak_duplicate_rows
 
 
 def _notice_values(notice: RecognitionNotice) -> dict[str, Any]:
@@ -295,12 +325,15 @@ def _append_notice_rows(
         target_row = _last_data_row(ws) + 1
         for field_name, column in columns.items():
             spec = fields.get(field_name, {})
-            ws.cell(target_row, column).value = _value_for_notice_field(
+            cell = ws.cell(target_row, column)
+            cell.value = _value_for_notice_field(
                 field_name,
                 spec if isinstance(spec, dict) else {},
                 values,
                 target_row,
             )
+            if isinstance(cell.value, datetime):
+                cell.number_format = "YYYY-MM-DD HH:MM"
         existing_notice_ids.add(notice.notice_id)
         written += 1
     return written, skipped
@@ -374,7 +407,7 @@ def write_with_template_profile(
             written = 0
             skipped = 0
             if mode == "ledger_rows":
-                written, skipped, skipped_rows = _append_rows(ws, fields, ledger_rows)
+                written, skipped, skipped_rows, weak_duplicates = _append_rows(ws, fields, ledger_rows)
                 if recognition_notices is not None:
                     existing_notice_ids = {notice.notice_id for notice in recognition_notices}
                     for skipped_row, existing_row in skipped_rows:
@@ -393,15 +426,37 @@ def write_with_template_profile(
                             f"疑似重复：文件 {notice.source_file}，发票号码 {invoice_no}，"
                             f"{duplicate_position}本次未写入；请查看 Excel 的“识别提示”页。"
                         )
+                    for weak_row, existing_row in weak_duplicates:
+                        notice = duplicate_notice_from_ledger_row(weak_row, existing_row).model_copy(
+                            update={
+                                "severity": "已写入",
+                                "issue_type": "疑似重复（弱身份票）",
+                                "action": "已写入采集表；请人工确认是否真重复，重复则删除该行。",
+                            }
+                        )
+                        if notice.notice_id in existing_notice_ids:
+                            continue
+                        recognition_notices.append(notice)
+                        existing_notice_ids.add(notice.notice_id)
+                        duplicate_position = (
+                            f"重复位置：采集表第 {existing_row['excel_row']} 行；"
+                            if existing_row and existing_row.get("excel_row")
+                            else ""
+                        )
+                        invoice_no = notice.invoice_no or "发票号码未识别"
+                        result.messages.append(
+                            f"疑似重复（弱身份票）：文件 {notice.source_file}，发票号码 {invoice_no}，"
+                            f"{duplicate_position}本次已写入但需人工确认；请查看 Excel 的“识别提示”页。"
+                        )
                 result.added_rows = written
                 result.skipped_duplicate_rows += skipped
             elif mode == "invoice_summary":
-                written, skipped, _ = _append_rows(ws, fields, _summary_rows(ledger_rows))
+                written, skipped, _, _ = _append_rows(ws, fields, _summary_rows(ledger_rows))
                 result.skipped_duplicate_rows += skipped
             elif mode == "review_issues":
                 if recognition_notices is None:
                     issues = _issue_rows(ledger_rows)
-                    written, skipped, _ = _append_rows(ws, fields, issues)
+                    written, skipped, _, _ = _append_rows(ws, fields, issues)
                     result.review_required_rows = len(issues)
                 else:
                     written, skipped = _append_notice_rows(ws, fields, recognition_notices)

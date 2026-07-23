@@ -6,7 +6,7 @@ from decimal import Decimal
 from hashlib import sha1
 from pathlib import Path
 
-from ..contracts import InvoiceItem, InvoiceRecord, LedgerRow, RecognitionStatus, normalize_amount, normalize_date
+from ..contracts import InvoiceItem, InvoiceRecord, LedgerRow, RecognitionStatus, normalize_amount
 from ..validation.review_notes import user_review_remark
 
 
@@ -44,11 +44,7 @@ def _display_file_name(source_file: str) -> str:
 
 
 def _processed_date(processed_at: str) -> str:
-    try:
-        normalized = normalize_date(processed_at)
-    except ValueError:
-        normalized = None
-    return normalized or str(processed_at)[:10]
+    return processed_at
 
 
 def _line_total_with_tax(item: InvoiceItem) -> Decimal | None:
@@ -177,6 +173,7 @@ def _base_values(
         "seller_name": invoice.seller_name,
         "seller_tax_id": invoice.seller_tax_id,
         "invoice_type": invoice.invoice_type,
+        "is_positive_invoice": "否" if (invoice.total_with_tax is not None and invoice.total_with_tax < 0) else "是",
         "invoice_amount_total": invoice.amount_total,
         "invoice_tax_total": invoice.tax_total,
         "invoice_total_with_tax": invoice.total_with_tax,
