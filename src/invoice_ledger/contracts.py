@@ -267,6 +267,12 @@ class InvoiceItem(ContractModel):
     item_name: str | None = None
     service_location: str | None = None
     project_name: str | None = None
+    # 货物运输服务 5 列子表：运输工具种类/运输工具牌号/起运地/到达地/运输货物名称
+    transport_vehicle_type: str | None = None
+    transport_vehicle_no: str | None = None
+    origin_place: str | None = None
+    destination_place: str | None = None
+    transport_goods_name: str | None = None
     spec_model: str | None = None
     unit: str | None = None
     quantity: Decimal | None = None

@@ -140,10 +140,28 @@ def _summary_tax_rate(record: InvoiceRecord, single_item: InvoiceItem | None) ->
     return None
 
 
+def _freight_context(item: InvoiceItem) -> str:
+    """货运 5 列序列化（运输工具种类/牌号、起运地→到达地、运输货物名称），进 context_remark 不进 Excel 新列。"""
+    segs: list[str] = []
+    vehicle = " ".join(part for part in [item.transport_vehicle_type, item.transport_vehicle_no] if part)
+    if vehicle:
+        segs.append(vehicle)
+    if item.origin_place and item.destination_place:
+        segs.append(f"{item.origin_place}→{item.destination_place}")
+    elif item.origin_place or item.destination_place:
+        segs.append(item.origin_place or item.destination_place or "")
+    if item.transport_goods_name:
+        segs.append(f"货物：{item.transport_goods_name}")
+    return f"货运：{'；'.join(segs)}" if segs else ""
+
+
 def _item_context_remark(item: InvoiceItem) -> str:
     parts: list[str] = []
     if item.project_name:
         parts.append(f"项目名称：{item.project_name}")
+    freight = _freight_context(item)
+    if freight:
+        parts.append(freight)
     return "；".join(parts)
 
 

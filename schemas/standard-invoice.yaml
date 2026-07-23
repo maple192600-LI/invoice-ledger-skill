@@ -232,6 +232,24 @@ line_table:
     line_tax_amount:
       - 税额
 
+# 货物运输服务专属 5 列子表（明细合计行下方的独立区块，非标准 8 列）
+freight_subtable:
+  trigger_keywords:          # 这些表头同时命中才判定为货运子表，防误判
+    - 运输工具种类
+    - 起运地
+    - 到达地
+  header_aliases:
+    transport_vehicle_type:
+      - 运输工具种类
+    transport_vehicle_no:
+      - 运输工具牌号
+    origin_place:
+      - 起运地
+    destination_place:
+      - 到达地
+    transport_goods_name:
+      - 运输货物名称
+
 ocr_table:
   item_start_max_x: 470
   end_marker_min_x: 1500

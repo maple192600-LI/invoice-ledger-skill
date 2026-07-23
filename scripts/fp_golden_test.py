@@ -70,6 +70,21 @@ CASES = [
         },
     },
     {
+        "label": "货物运输(启达物流)",
+        "path": ROOT / "数电发票" / "dzfp_26142000000668273041_山西启达物流有限公司_20260713184956.pdf",
+        "expect": {
+            "invoice_no": "26142000000668273041",
+            "amount_total": "35779.82", "tax_total": "3220.18", "total_with_tax": "39000.00",
+            "items": [
+                {"line_amount": "35779.82", "tax_rate": "9%", "line_tax_amount": "3220.18",
+                 "line_total_with_tax": "39000.00", "name_contains": "运输服务",
+                 "transport_vehicle_type": "公路运输", "transport_vehicle_no": "晋ADC0693",
+                 "origin_place": "阳曲", "destination_place": "景洪",
+                 "transport_goods_name": "摊铺机、双钢轮"},
+            ],
+        },
+    },
+    {
         "label": "高德XML(总局EInvoice)",
         "path": GAODE_XML,
         "expect": {

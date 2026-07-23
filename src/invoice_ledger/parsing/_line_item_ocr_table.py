@@ -133,6 +133,93 @@ def _derive_digital_edges(
     return edges, header_y_by_page
 
 
+_FREIGHT_TRIGGER_FALLBACK = ("运输工具种类", "起运地", "到达地")
+_FREIGHT_DATA_BAND_HEIGHT = 80.0
+_FREIGHT_INTERFERENCE_KEYWORDS = ("价税合计", "备注", "开户", "下载次数", "开票人", "收款人", "复核")
+
+
+def _freight_text_to_col(schema: dict[str, Any]) -> dict[str, str]:
+    subtable = schema.get("freight_subtable", {})
+    if not isinstance(subtable, dict):
+        return {}
+    mapping: dict[str, str] = {}
+    for column, aliases in (subtable.get("header_aliases") or {}).items():
+        for alias in aliases:
+            mapping[_compact_text(alias)] = str(column)
+    return mapping
+
+
+def _extract_freight_subtable(
+    spans: list[dict[str, Any]], schema: dict[str, Any]
+) -> list[dict[str, str]]:
+    """货物运输服务 5 列子表：表头锚点定位 + 数据行按 x 归列。
+
+    货运子表是明细合计行下方的独立区块（运输工具种类/牌号/起运地/到达地/运输货物名称），
+    非 8 列标准表。trigger_keywords 不全命中则返回空——非货运票零触发、零退化。
+    """
+    subtable = schema.get("freight_subtable", {})
+    if not isinstance(subtable, dict):
+        return []
+    text_to_col = _freight_text_to_col(schema)
+    if not text_to_col:
+        return []
+    triggers = subtable.get("trigger_keywords") or _FREIGHT_TRIGGER_FALLBACK
+    compact_all = {_compact_text(s["text"]) for s in spans if s["text"].strip()}
+    if any(_compact_text(t) not in compact_all for t in triggers):
+        return []
+
+    # 表头行 = 含最多货运列名的 y 桶；列锚点 = 各表头 span 中心 x
+    buckets: dict[int, dict[str, float]] = defaultdict(dict)
+    for span in spans:
+        column = text_to_col.get(_compact_text(span["text"]))
+        if column:
+            buckets[round(span["y0"])][column] = (span["x0"] + span["x1"]) / 2
+    if not buckets:
+        return []
+    header_y, col_centers = max(buckets.items(), key=lambda item: len(item[1]))
+    if len(col_centers) < len(triggers):
+        return []
+    anchors = sorted(col_centers.items(), key=lambda item: item[1])
+
+    # 数据区下界 = min(首个干扰词 y, 表头 y + 带宽)，避免吸入价税合计/备注区
+    interference_y = next(
+        (s["y0"] for s in spans if any(k in s["text"] for k in _FREIGHT_INTERFERENCE_KEYWORDS)),
+        float("inf"),
+    )
+    lower_bound = min(interference_y, header_y + _FREIGHT_DATA_BAND_HEIGHT)
+    gaps = [anchors[i + 1][1] - anchors[i][1] for i in range(len(anchors) - 1)]
+    tol = (min(gaps) / 2) if gaps else 45.0
+
+    rows: dict[int, dict[str, str]] = defaultdict(dict)
+    for span in spans:
+        if span["y0"] <= header_y + 4 or span["y0"] >= lower_bound:
+            continue
+        cx = (span["x0"] + span["x1"]) / 2
+        nearest_col, nearest_cx = min(anchors, key=lambda item: abs(item[1] - cx))
+        if abs(nearest_cx - cx) <= tol:
+            rows[round(span["y0"])][nearest_col] = span["text"].strip()
+
+    ordered: list[dict[str, str]] = []
+    for y_key in sorted(rows):
+        row = rows[y_key]
+        if any(row.values()):
+            ordered.append(row)
+    return ordered
+
+
+def _merge_freight_into_items(
+    items: list[dict[str, Any]], freight_rows: list[dict[str, str]]
+) -> None:
+    """把货运 5 列 merge 进标准明细 item（按行序对应；多行超出挂末行，单行样本已验证）。"""
+    if not freight_rows or not items:
+        return
+    for idx, row in enumerate(freight_rows):
+        target = items[idx] if idx < len(items) else items[-1]
+        for col, value in row.items():
+            if value:
+                target[col] = value
+
+
 def _extract_digital_text_table_items(
     text_units: TextUnits, schema: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -201,4 +288,5 @@ def _extract_digital_text_table_items(
         item = _ocr_table_item(detail_units[start_index:end_index], table_config, textual_spec_tokens)
         if item:
             items.append(item)
+    _merge_freight_into_items(items, _extract_freight_subtable(spans, schema))
     return items
