@@ -1,0 +1,44 @@
+name: release-smoke
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7.0.0
+
+      - uses: actions/setup-python@v6.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install base dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile source
+        run: python -m compileall -q src scripts
+
+      - name: Run doctor without OCR
+        run: python scripts\fp_doctor.py --no-ocr
+
+      - name: Run cheap ledger check
+        run: >
+          python scripts\fp_ledger.py
+          --check-only
+          --input README.md
+          --draft-ledger templates\invoice-information-collection.xlsx
+          --config config\runtime.yaml
+          --output-dir output
+
+      - name: Run text-only Excel write
+        run: |
+          Copy-Item templates\invoice-information-collection.xlsx output\smoke-ledger.xlsx
+          python scripts\fp_ledger.py --input README.md --draft-ledger output\smoke-ledger.xlsx --config config\runtime.yaml --output-dir output\smoke --json-output summary
