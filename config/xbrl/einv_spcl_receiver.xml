@@ -1,0 +1,66 @@
+<xbrlJson id ="einv_spcl_receiver" name="全面数字化的电子发票-增值税专用发票-接收方">
+    <!-- 实例文档节点设置 -->
+    <instanceDoc>
+        <nameSpaceRef>
+            <nameSpace nameSpacePrefix = "xsi" nameSpaceURI = "http://www.w3.org/2001/XMLSchema-instance" />
+            <nameSpace nameSpacePrefix = "einv" nameSpaceURI = "http://xbrl.mof.gov.cn/taxonomy/2023-12-31/einv" />
+            <nameSpace nameSpacePrefix = "link" nameSpaceURI = "http://www.xbrl.org/2003/linkbase" />
+            <nameSpace nameSpacePrefix = "xbrli" nameSpaceURI = "http://www.xbrl.org/2003/instance" />
+            <nameSpace nameSpacePrefix = "iso4217" nameSpaceURI = "http://www.xbrl.org/2003/iso4217" />
+            <nameSpace nameSpacePrefix = "xlink" nameSpaceURI = "http://www.w3.org/1999/xlink" />
+        </nameSpaceRef>
+        <SchemaLocationRef value ="http://xbrl.org/2006/xbrldi http://www.xbrl.org/2006/xbrldi-2006.xsd" />
+        <UnitRef>
+            <unit id ="u1" measure ="iso4217:CNY" numerator ="" denominator =""/>
+        </UnitRef>
+        <SchemaRef schemaRef ="einv_entry_point_2023-12-31.xsd" />
+        <EntityRef identifier = "${UnifiedSocialCreditCodeOfAccountingEntity}" scheme ="http://xbrl.mof.gov.cn"/>
+        <ContextInstantRef instant = "${InformationOfAccountingDocumentsTuple.PostingDate}"/>
+    </instanceDoc>
+    <!-- 对象定义节点 -->
+    <objectDefine>
+    </objectDefine>
+    <!-- json对象映射 -->
+    <jsonObject elementValueType ="string" contextType ="instant" decimals ="2" unitId ="u1" controlData ="">
+        <InvoiceNumber elementName="InvoiceNumber" elementNsName="einv" elementValueType="string"/>
+        <SellerName elementName="SellerName" elementNsName="einv" elementValueType="string"/>
+        <SellerIdNum elementName="SellerIdNum" elementNsName="einv" elementValueType="string"/>
+        <TotalAmWithoutTax elementName="TotalAmWithoutTax" elementNsName="einv" elementValueType="number"/>
+        <TotalTaxAm elementName="TotalTaxAm" elementNsName="einv" elementValueType="number"/>
+        <TotalTax-includedAmount elementName="TotalTax-includedAmount" elementNsName="einv" elementValueType="number"/>
+        <RequestTime elementName="RequestTime" elementNsName="einv" elementValueType="string"/>
+        <ContractNumber elementName="ContractNumber" elementNsName="einv" elementValueType="string"/>
+        <MatchingStateBetweenBusinessDocumentsAndVatEinvoice elementName="MatchingStateBetweenBusinessDocumentsAndVatEinvoice" elementNsName="einv" elementValueType="string"/>
+        <DepreciationMethodsOfFixedAssetsAndAmortizationMethodsOfIntangibleAssets elementName="DepreciationMethodsOfFixedAssetsAndAmortizationMethodsOfIntangibleAssets" elementNsName="einv" elementValueType="string"/>
+        <WhetherEinvoiceHasBeenFactoredSoldOrSecuritized elementName="WhetherEinvoiceHasBeenFactoredSoldOrSecuritized" elementNsName="einv" elementValueType="string"/>
+        <WhetherEinvoiceIsRedEinvoice elementName="WhetherEinvoiceIsRedEinvoice" elementNsName="einv" elementValueType="string"/>
+        <WhetherEinvoiceHasBeenChecked elementName="WhetherEinvoiceHasBeenChecked" elementNsName="einv" elementValueType="string"/>
+        <WhetherEinvoiceHasBeenBooked elementName="WhetherEinvoiceHasBeenBooked" elementNsName="einv" elementValueType="string"/>
+        <WhetherEinvoiceUsageHasBeenConfirmed elementName="WhetherEinvoiceUsageHasBeenConfirmed" elementNsName="einv" elementValueType="string"/>
+        <UsageConfirmation elementName="UsageConfirmation" elementNsName="einv" elementValueType="string"/>
+        <PeriodOfUsageConfirmation elementName="PeriodOfUsageConfirmation" elementNsName="einv" elementValueType="string"/>
+        <WhetherEinvoiceHasBeenPaid elementName="WhetherEinvoiceHasBeenPaid" elementNsName="einv" elementValueType="string"/>
+        <NumberOfBankElectronicReceipt elementName="NumberOfBankElectronicReceipt" elementNsName="einv" elementValueType="string"/>
+        <WhetherInputVatHasBeenTransferredOut elementName="WhetherInputVatHasBeenTransferredOut" elementNsName="einv" elementValueType="string"/>
+        <AmountOfTransferredOutInputVat elementName="AmountOfTransferredOutInputVat" elementNsName="einv" elementValueType="number"/>
+        <UnifiedSocialCreditCodeOfAccountingEntity elementName="UnifiedSocialCreditCodeOfAccountingEntity" elementNsName="einv" elementValueType="string"/>
+        <NameOfAccountingEntity elementName="NameOfAccountingEntity" elementNsName="einv" elementValueType="string"/>
+        <InformationOfAccountingDocumentsTuple elementName="InformationOfAccountingDocumentsTuple" elementNsName="einv" elementValueType="tuple">
+            <NumberOfAccountingDocuments elementName="NumberOfAccountingDocuments" elementNsName="einv" elementValueType="string"/>
+            <PostingDate elementName="PostingDate" elementNsName="einv" elementValueType="date"/>
+            <AccountingPeriod elementName="AccountingPeriod" elementNsName="einv" elementValueType="string"/>
+            <SummaryOfAccountingDocuments elementName="SummaryOfAccountingDocuments" elementNsName="einv" elementValueType="string"/>
+            <InformationOfDebitAndCreditEntryTuple elementName="InformationOfDebitAndCreditEntryTuple" elementNsName="einv" elementValueType="tuple">
+                <DebitOrCredit elementName="DebitOrCredit" elementNsName="einv" elementValueType="string"/>
+                <NameOfGeneralLedgerSubject elementName="NameOfGeneralLedgerSubject" elementNsName="einv" elementValueType="string"/>
+                <NameOfSubsidiaryLedgerSubject elementName="NameOfSubsidiaryLedgerSubject" elementNsName="einv" elementValueType="string"/>
+                <RecordedAmount elementName="RecordedAmount" elementNsName="einv" elementValueType="number"/>
+            </InformationOfDebitAndCreditEntryTuple>
+        </InformationOfAccountingDocumentsTuple>
+        <WhetherPreTaxDeductionOfIncomeTaxHasBeenCompleted elementName="WhetherPreTaxDeductionOfIncomeTaxHasBeenCompleted" elementNsName="einv" elementValueType="string"/>
+        <BeginningOfPreTaxDeductionYearOfIncomeTax elementName="BeginningOfPreTaxDeductionYearOfIncomeTax" elementNsName="einv" elementValueType="string"/>
+        <EndOfPreTaxDeductionYearOfIncomeTax elementName="EndOfPreTaxDeductionYearOfIncomeTax" elementNsName="einv" elementValueType="string"/>
+        <BeginningOfExpenditurePeriodUnderAccrualBasis elementName="BeginningOfExpenditurePeriodUnderAccrualBasis" elementNsName="einv" elementValueType="string"/>
+        <EndOfExpenditurePeriodUnderAccrualBasis elementName="EndOfExpenditurePeriodUnderAccrualBasis" elementNsName="einv" elementValueType="string"/>
+    </jsonObject>
+</xbrlJson>

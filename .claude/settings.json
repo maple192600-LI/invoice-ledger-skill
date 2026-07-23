@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(python scripts/install_skill_env.py:*)",
+      "Bash(py scripts/install_skill_env.py:*)",
+      "Bash(python --version)",
+      "Bash(py --version)"
+    ]
+  },
+  "env": {
+    "PYTHONUTF8": "1"
+  }
+}

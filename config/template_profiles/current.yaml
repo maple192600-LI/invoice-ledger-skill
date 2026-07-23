@@ -1,0 +1,175 @@
+template_id: invoice-information-collection
+template_version: "2026-07-23"
+description: Current invoice information collection workbook profile.
+template_path: templates/invoice-information-collection.xlsx
+sheets:
+  detail:
+    name: 发票信息采集
+    mode: ledger_rows
+    fields:
+      row_sequence:
+        headers: [序号]
+        required: true
+        value: row_number
+      source_file:
+        headers: [文件名]
+        required: true
+      processed_at:
+        headers: [处理时间]
+        required: true
+      invoice_code:
+        headers: [发票代码]
+        required: true
+      invoice_no:
+        headers: [发票号码]
+        required: true
+      digital_invoice_no:
+        headers: [数电发票号码]
+        required: true
+      seller_tax_id:
+        headers: [销方识别号]
+        required: false
+      seller_name:
+        headers: [销方名称]
+        required: true
+      buyer_tax_id:
+        headers: [购方识别号]
+        required: false
+      buyer_name:
+        headers: [购买方名称]
+        required: false
+      invoice_date:
+        headers: [开票日期]
+        required: false
+      item_name:
+        headers: [货物或应税劳务名称]
+        required: true
+      spec_model:
+        headers: [规格型号]
+        required: false
+      unit:
+        headers: [单位]
+        required: false
+      quantity:
+        headers: [数量]
+        required: false
+      unit_price:
+        headers: [单价]
+        required: false
+      line_amount:
+        headers: [金额]
+        required: true
+      tax_rate:
+        headers: [税率]
+        required: false
+      line_tax_amount:
+        headers: [税额]
+        required: false
+      line_total_with_tax:
+        headers: [价税合计]
+        required: true
+      invoice_type:
+        headers: [发票票种]
+        required: true
+      is_positive_invoice:
+        headers: [是否正数发票]
+        required: false
+      confidence:
+        headers: [置信度]
+        required: true
+      recognition_status:
+        headers: [识别状态]
+        required: true
+      remark:
+        headers: [备注]
+        required: false
+      draft_row_id:
+        headers: [票据ID]
+        required: true
+        source: invoice_line_key
+  summary:
+    name: 发票基础信息
+    mode: invoice_summary
+    fields:
+      row_sequence:
+        headers: [序号]
+        required: true
+        value: row_number
+      invoice_code:
+        headers: [发票代码]
+        required: true
+      invoice_no:
+        headers: [发票号码]
+        required: true
+      digital_invoice_no:
+        headers: [数电发票号码]
+        required: true
+      seller_tax_id:
+        headers: [销方识别号]
+        required: false
+      seller_name:
+        headers: [销方名称]
+        required: true
+      buyer_tax_id:
+        headers: [购方识别号]
+        required: false
+      buyer_name:
+        headers: [购买方名称]
+        required: false
+      invoice_date:
+        headers: [开票日期]
+        required: false
+      invoice_amount_total:
+        headers: [金额]
+        required: true
+      invoice_tax_total:
+        headers: [税额]
+        required: false
+      invoice_total_with_tax:
+        headers: [价税合计]
+        required: true
+      invoice_type:
+        headers: [发票票种]
+        required: true
+      is_positive_invoice:
+        headers: [是否正数发票]
+        required: false
+      remark:
+        headers: [备注]
+        required: false
+      draft_row_id:
+        headers: [票据ID]
+        required: true
+        source: invoice_line_key
+  issues:
+    name: 识别提示
+    mode: review_issues
+    fields:
+      severity:
+        headers: [状态]
+        required: true
+      issue_type:
+        headers: [问题]
+        required: true
+      source_file:
+        headers: [文件]
+        required: true
+      page_text:
+        headers: [页码]
+        required: true
+      invoice_no:
+        headers: [发票号码]
+        required: false
+      amount_total:
+        headers: [价税合计]
+        required: false
+      check_location:
+        headers: [核对位置]
+        required: true
+      action:
+        headers: [处理方式]
+        required: true
+      draft_row_id:
+        headers: [票据ID]
+        required: true
+        source: notice_id

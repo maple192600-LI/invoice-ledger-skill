@@ -1,0 +1,49 @@
+<xbrlJson id ="atr_receiver" name="航空运输客票电子行程单-接收方">
+    <!-- 实例文档节点设置 -->
+    <instanceDoc>
+        <nameSpaceRef>
+            <nameSpace nameSpacePrefix = "xsi" nameSpaceURI = "http://www.w3.org/2001/XMLSchema-instance" />
+            <nameSpace nameSpacePrefix = "atr" nameSpaceURI = "http://xbrl.mof.gov.cn/taxonomy/2023-12-31/atr" />
+            <nameSpace nameSpacePrefix = "link" nameSpaceURI = "http://www.xbrl.org/2003/linkbase" />
+            <nameSpace nameSpacePrefix = "xbrli" nameSpaceURI = "http://www.xbrl.org/2003/instance" />
+            <nameSpace nameSpacePrefix = "iso4217" nameSpaceURI = "http://www.xbrl.org/2003/iso4217" />
+            <nameSpace nameSpacePrefix = "xlink" nameSpaceURI = "http://www.w3.org/1999/xlink" />
+        </nameSpaceRef>
+        <SchemaLocationRef value ="http://xbrl.org/2006/xbrldi http://www.xbrl.org/2006/xbrldi-2006.xsd" />
+        <UnitRef>
+            <unit id ="u1" measure ="iso4217:CNY" numerator ="" denominator =""/>
+        </UnitRef>
+        <SchemaRef schemaRef ="atr_receiver_entry_point_2023-12-31.xsd" />
+        <EntityRef identifier = "${UnifiedSocialCreditCodeOfAccountingEntity}" scheme ="http://xbrl.mof.gov.cn"/>
+        <ContextInstantRef instant = "${InformationOfAccountingDocumentsTuple.PostingDate}"/>
+    </instanceDoc>
+    <!-- 对象定义节点 -->
+    <objectDefine>
+    </objectDefine>
+    <!-- json对象映射 -->
+    <jsonObject elementValueType ="string" contextType ="instant" decimals ="2" unitId ="u1" controlData ="">
+        <ElectronicInvoiceAirTransportReceiptNumber elementName="ElectronicInvoiceAirTransportReceiptNumber" elementNsName="atr" elementValueType="string"/>
+        <Fare elementName="Fare" elementNsName="atr" elementValueType="number"/>
+        <IssueParty elementName="IssueParty" elementNsName="atr" elementValueType="string"/>
+        <IssueDate elementName="IssueDate" elementNsName="atr" elementValueType="date"/>
+        <WhetherInvoiceIsRedInvoice elementName="WhetherInvoiceIsRedInvoice" elementNsName="atr" elementValueType="string"/>
+        <WhetherInvoiceHasBeenChecked elementName="WhetherInvoiceHasBeenChecked" elementNsName="atr" elementValueType="string"/>
+        <WhetherInvoiceHasBeenBooked elementName="WhetherInvoiceHasBeenBooked" elementNsName="atr" elementValueType="string"/>
+        <WhetherInvoiceHasBeenDeducted elementName="WhetherInvoiceHasBeenDeducted" elementNsName="atr" elementValueType="string"/>
+        <TaxPeriodOfInvoiceDeduction elementName="TaxPeriodOfInvoiceDeduction" elementNsName="atr" elementValueType="string"/>
+        <UnifiedSocialCreditCodeOfAccountingEntity elementName="UnifiedSocialCreditCodeOfAccountingEntity" elementNsName="atr" elementValueType="string"/>
+        <NameOfAccountingEntity elementName="NameOfAccountingEntity" elementNsName="atr" elementValueType="string"/>
+        <InformationOfAccountingDocumentsTuple elementName="InformationOfAccountingDocumentsTuple" elementNsName="atr" elementValueType="tuple">
+            <NumberOfAccountingDocuments elementName="NumberOfAccountingDocuments" elementNsName="atr" elementValueType="string"/>
+            <PostingDate elementName="PostingDate" elementNsName="atr" elementValueType="date"/>
+            <AccountingPeriod elementName="AccountingPeriod" elementNsName="atr" elementValueType="string"/>
+            <SummaryOfAccountingDocuments elementName="SummaryOfAccountingDocuments" elementNsName="atr" elementValueType="string"/>
+            <InformationOfDebitAndCreditEntryTuple elementName="InformationOfDebitAndCreditEntryTuple" elementNsName="atr" elementValueType="tuple">
+                <DebitOrCredit elementName="DebitOrCredit" elementNsName="atr" elementValueType="string"/>
+                <NameOfGeneralLedgerSubject elementName="NameOfGeneralLedgerSubject" elementNsName="atr" elementValueType="string"/>
+                <NameOfSubsidiaryLedgerSubject elementName="NameOfSubsidiaryLedgerSubject" elementNsName="atr" elementValueType="string"/>
+                <RecordedAmount elementName="RecordedAmount" elementNsName="atr" elementValueType="number"/>
+            </InformationOfDebitAndCreditEntryTuple>
+        </InformationOfAccountingDocumentsTuple>
+    </jsonObject>
+</xbrlJson>

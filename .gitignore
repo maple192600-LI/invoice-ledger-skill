@@ -1,0 +1,48 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== OCR 缓存 =====
+.ocr_cache/
+
+# ===== 运行输出与证据（可能含发票文本/金额） =====
+output/
+outputs/
+runs/
+debug-output/
+units/
+evidence.md
+run_summary.json
+write_result.json
+
+# ===== 真实发票样本与回归基线（隐私数据，禁止公开） =====
+数电发票/
+回归基线/
+
+# ===== 超大文件（超 GitHub 100MB 限制） =====
+P020260515544445443201.zip
+P020260515544445443201/
+
+# ===== Excel 锁文件 =====
+~$*.xlsx
+~$*.xls
+~$*.xlsm
+
+# ===== WorkBuddy 安装副本 / 第三方工具包（非本项目源码） =====
+.workbuddy/
+电子凭证会计数据标准推广应用工具包/
+
+# ===== Claude Code 本机特定配置（含本机 venv 路径，不公开） =====
+.claude/settings.local.json
+
+# ===== OS / 编辑器 =====
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+.vscode/

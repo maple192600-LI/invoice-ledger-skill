@@ -1,0 +1,90 @@
+schema_id: road-bus-ticket
+name: 公路汽车客票
+stage: stage_two_png_ability_pack
+variants:
+  - road-bus-ticket
+
+match_rules:
+  required_all:
+    - 公路汽车客票
+  required_any:
+    - 始发地
+    - 票价
+    - 目的地
+    - 乘车日期
+  min_required_any: 2
+
+fields:
+  invoice_code:
+    aliases:
+      - 发票代码
+    required: true
+  invoice_no:
+    aliases:
+      - 发票号码
+    required: true
+  invoice_date:
+    aliases:
+      - 乘车日期
+    required: true
+  buyer_name:
+    aliases: []
+    required: false
+  buyer_tax_id:
+    aliases: []
+    required: false
+  seller_name:
+    aliases:
+      - 承运人
+    required: true
+  seller_tax_id:
+    aliases: []
+    required: false
+  invoice_type:
+    aliases:
+      - 公路汽车客票
+    required: true
+  amount_total:
+    aliases:
+      - 票价
+    required: true
+  tax_total:
+    aliases: []
+    required: true
+  total_with_tax:
+    aliases:
+      - 票价
+    required: true
+
+amount_checks:
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true
+
+layout_rules:
+  seller_tax_id:
+    min_y: 250
+    max_y: 310
+    min_x: 520
+    max_x: 800
+  seller_stamp:
+    min_y: 245
+    max_y: 335
+    min_x: 560
+    max_x: 760
+    stamp_terms:
+      - 发票专用章
+    origin_company_suffix: 市公路客运有限公司
+  origin:
+    min_y: 390
+    max_y: 470
+    min_x: 220
+    max_x: 380
+  destination:
+    min_y: 390
+    max_y: 470
+    min_x: 1000

@@ -1,0 +1,51 @@
+schemas:
+  - schema_id: medical-fiscal-receipt
+    name: 医疗收费票据
+    path: schemas/medical-fiscal-receipt.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: air-ticket-itinerary
+    name: 航空运输电子客票行程单
+    path: schemas/air-ticket-itinerary.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: general-machine-invoice
+    name: 通用机打发票
+    path: schemas/general-machine-invoice.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: tax-payment-certificate
+    name: 税收完税证明
+    path: schemas/tax-payment-certificate.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: road-bus-ticket
+    name: 公路汽车客票
+    path: schemas/road-bus-ticket.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: railway-ticket
+    name: 铁路电子客票
+    path: schemas/railway-ticket.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: water-passenger-ticket
+    name: 水路旅客运输客票
+    path: schemas/water-passenger-ticket.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: taxi-machine-invoice
+    name: 出租车机打发票
+    path: schemas/taxi-machine-invoice.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: metro-quota-invoice
+    name: 地铁定额发票
+    path: schemas/metro-quota-invoice.yaml
+    status: active
+    stage: stage_two_png_ability_pack
+  - schema_id: standard-invoice
+    name: 标准发票类
+    path: schemas/standard-invoice.yaml
+    status: active
+    stage: shared_baseline

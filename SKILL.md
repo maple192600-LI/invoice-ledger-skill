@@ -1,0 +1,123 @@
+---
+name: invoice-ledger-skill
+description: Local Codex skill for extracting invoice information from PDF, image, and scanned invoice files into an Excel invoice ledger. Use when the user needs local invoice OCR, invoice field extraction, ledger row generation, evidence output, template-based Excel writing, first-install environment setup, or adding invoice schema YAML files.
+slug: maple192600-li-invoice-ledger
+displayName: 发票台账本地化采集
+version: 1.0.1
+summary: 本地运行的开票采集 Skill，把 PDF / 图片 / 扫描件发票识别成可复核的 Excel 台账——全程离线、财务数据不出本机、AI 不直读原始票据。
+license: MIT
+---
+
+# Invoice Ledger Skill
+
+Process local invoice files into a working Excel collection workbook. Keep normal runs low-token: run deterministic scripts, read only summaries, and open evidence files only when debugging a specific failure.
+
+## First Install
+
+Run once after cloning, moving machines, deleting `.venv`, or changing OCR/Paddle/Python setup:
+
+```powershell
+python scripts\install_skill_env.py --ocr auto
+```
+
+The installer creates `.venv` in the skill folder and installs OCR dependencies there. It selects `requirements-ocr-gpu.txt` when `nvidia-smi` reports an NVIDIA GPU, otherwise `requirements-ocr-cpu.txt`. Use `--verbose` only when installation fails.
+
+Run install from the skill root. Runtime scripts switch to the skill root automatically when invoked by absolute path.
+
+Run doctor only for first install or environment/template/OCR problems:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_doctor.py
+```
+
+Do not run doctor before every invoice batch.
+
+## Before Running
+
+For unfamiliar versions, check the CLI signature once:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --help
+```
+
+Use `--input` only for one file. Use `--input-dir` for a folder.
+
+## Workbook Rule
+
+Keep the blank workbook as a source template only:
+
+```text
+templates/invoice-information-collection.xlsx
+```
+
+For real work, copy the blank workbook once to a user/output working ledger, then keep pointing `--draft-ledger` or `--workbook` to that same working ledger for later batches. The writer appends rows and skips likely duplicates by default.
+
+Do not write directly into `templates/`. Do not create a fresh workbook for each invoice batch unless the user explicitly wants a separate ledger.
+
+Before the first formal run against a working ledger, run the cheap compatibility check:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --check-only --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output
+```
+
+`--check-only` validates arguments, input paths, config, and workbook/template compatibility. It does not run OCR and does not modify Excel.
+
+## Run
+
+Single file:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <invoice-file> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output --json-output summary
+```
+
+Folder:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <invoice-folder> --draft-ledger <working-ledger.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output --json-output summary
+```
+
+Use `config\runtime_ocr_auto.yaml` for OCR jobs. It selects GPU when `nvidia-smi` reports an NVIDIA GPU, otherwise CPU. Use `config\runtime.yaml` only for text-layer PDFs where OCR is not needed.
+
+Default writing appends to the workbook and skips likely duplicates. Use `--copy-output` only when the user explicitly wants a copied output workbook for that run.
+
+Default evidence behavior saves unit evidence only for failed, unmodeled, or review-required invoice units. Use `--save-evidence none` only when the user wants no unit evidence files.
+
+Use `--json-output full` only for debugging; it prints full records and can be expensive for Agent contexts.
+
+Keep `--output-dir` under `output/`, `outputs/`, `runs/`, or `debug-output/` inside the skill folder unless the user explicitly chooses another location. Output summaries and evidence can contain invoice text.
+
+## Output Discipline
+
+Treat stdout summary and the final Chinese stderr message as the normal result. Do not paste full `run_summary.json`, evidence JSON, pip logs, or OCR progress logs into the conversation unless a failure requires that file.
+
+When a long OCR run is still executing, wait for completion and inspect the final summary instead of repeatedly pulling full task logs.
+
+## Template
+
+Default blank workbook:
+
+```text
+templates/invoice-information-collection.xlsx
+```
+
+Users may replace this workbook. If sheet names, column names, required fields, or mappings change, update:
+
+```text
+config/template_profiles/current.yaml
+```
+
+Keep repository file names ASCII for cross-agent compatibility. Keep workbook sheet names and headers in Chinese when needed.
+
+## Invoice Types
+
+Schemas live in:
+
+```text
+schemas/
+```
+
+To add a user-specific invoice type, add a YAML schema in `schemas/` and register it in `schemas/catalog.yaml`. Use `schemas/templates/new-schema-template.yaml` as the starting point.
+
+## Boundaries
+
+This skill does local extraction and Excel writing. Low-confidence and unsupported results must be surfaced as review items.

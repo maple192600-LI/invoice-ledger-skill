@@ -1,0 +1,67 @@
+<xbrlJson id ="atr_issuer" name="航空运输客票电子行程单-开具方">
+    <!-- 实例文档节点设置 -->
+    <instanceDoc>
+        <nameSpaceRef>
+            <nameSpace nameSpacePrefix = "xsi" nameSpaceURI = "http://www.w3.org/2001/XMLSchema-instance" />
+            <nameSpace nameSpacePrefix = "atr" nameSpaceURI = "http://xbrl.mof.gov.cn/taxonomy/2023-12-31/atr" />
+            <nameSpace nameSpacePrefix = "link" nameSpaceURI = "http://www.xbrl.org/2003/linkbase" />
+            <nameSpace nameSpacePrefix = "xbrli" nameSpaceURI = "http://www.xbrl.org/2003/instance" />
+            <nameSpace nameSpacePrefix = "iso4217" nameSpaceURI = "http://www.xbrl.org/2003/iso4217" />
+            <nameSpace nameSpacePrefix = "xlink" nameSpaceURI = "http://www.w3.org/1999/xlink" />
+        </nameSpaceRef>
+        <SchemaLocationRef value ="http://xbrl.org/2006/xbrldi http://www.xbrl.org/2006/xbrldi-2006.xsd" />
+        <UnitRef>
+            <unit id ="u1" measure ="iso4217:CNY" numerator ="" denominator =""/>
+        </UnitRef>
+        <SchemaRef schemaRef ="atr_issuer_entry_point_2023-12-31.xsd" />
+        <EntityRef identifier = "${IssueParty}" scheme ="http://xbrl.mof.gov.cn"/>
+        <ContextInstantRef instant = "${IssueDate}"/>
+    </instanceDoc>
+    <!-- 对象定义节点 -->
+    <objectDefine>
+    </objectDefine>
+    <!-- json对象映射 -->
+    <jsonObject elementValueType ="string" contextType ="instant" decimals ="2" unitId ="u1" controlData ="">
+        <MarkingOfDomesticOrInternational elementName="MarkingOfDomesticOrInternational" elementNsName="atr" elementValueType="string"/>
+        <NumberOfGpOrder elementName="NumberOfGpOrder" elementNsName="atr" elementValueType="string"/>
+        <ElectronicInvoiceAirTransportReceiptNumber elementName="ElectronicInvoiceAirTransportReceiptNumber" elementNsName="atr" elementValueType="string"/>
+        <IssuingStatus elementName="IssuingStatus" elementNsName="atr" elementValueType="string"/>
+        <!--QrCode elementName="QrCode" elementNsName="atr" elementValueType="string"/>-->
+        <PassengerName elementName="PassengerName" elementNsName="atr" elementValueType="string"/>
+        <ValidIdNumber elementName="ValidIdNumber" elementNsName="atr" elementValueType="string"/>
+        <Endorsement elementName="Endorsement" elementNsName="atr" elementValueType="string"/>
+        <DetailInformationOfAirTicketTuple elementName="DetailInformationOfAirTicketTuple" elementNsName="atr" elementValueType="tuple">
+            <DepartureStation elementName="DepartureStation" elementNsName="atr" elementValueType="string"/>
+            <DestinationStation elementName="DestinationStation" elementNsName="atr" elementValueType="string"/>
+            <FlightSegment elementName="FlightSegment" elementNsName="atr" elementValueType="string"/>
+            <Carrier elementName="Carrier" elementNsName="atr" elementValueType="string"/>
+            <Flight elementName="Flight" elementNsName="atr" elementValueType="string"/>
+            <Class elementName="Class" elementNsName="atr" elementValueType="string"/>
+            <CarrierDate elementName="CarrierDate" elementNsName="atr" elementValueType="date"/>
+            <DepartureTime elementName="DepartureTime" elementNsName="atr" elementValueType="string"/>
+            <FareBasis elementName="FareBasis" elementNsName="atr" elementValueType="string"/>
+            <EffectiveDate elementName="EffectiveDate" elementNsName="atr" elementValueType="date"/>
+            <ExpirationDate elementName="ExpirationDate" elementNsName="atr" elementValueType="date"/>
+            <FreeBaggageAllowance elementName="FreeBaggageAllowance" elementNsName="atr" elementValueType="string"/>
+        </DetailInformationOfAirTicketTuple>
+        <Fare elementName="Fare" elementNsName="atr" elementValueType="number"/>
+        <FuelSurcharge elementName="FuelSurcharge" elementNsName="atr" elementValueType="number"/>
+        <VatRate elementName="VatRate" elementNsName="atr" elementValueType="number"/>
+        <VatTaxAmount elementName="VatTaxAmount" elementNsName="atr" elementValueType="number"/>
+        <CivilAviationDevelopmentFund elementName="CivilAviationDevelopmentFund" elementNsName="atr" elementValueType="number"/>
+        <OtherTaxes elementName="OtherTaxes" elementNsName="atr" elementValueType="number"/>
+        <TotalAmount elementName="TotalAmount" elementNsName="atr" elementValueType="number"/>
+        <ETicketNumber elementName="ETicketNumber" elementNsName="atr" elementValueType="string"/>
+        <VerificationCode elementName="VerificationCode" elementNsName="atr" elementValueType="string"/>
+        <PromptInformation elementName="PromptInformation" elementNsName="atr" elementValueType="string"/>
+        <Insurance elementName="Insurance" elementNsName="atr" elementValueType="string"/>
+        <AgentCode elementName="AgentCode" elementNsName="atr" elementValueType="string"/>
+        <IssueParty elementName="IssueParty" elementNsName="atr" elementValueType="string"/>
+        <IssueDate elementName="IssueDate" elementNsName="atr" elementValueType="date"/>
+        <NameOfSeller elementName="NameOfSeller" elementNsName="atr" elementValueType="string"/>
+        <NameOfPurchaser elementName="NameOfPurchaser" elementNsName="atr" elementValueType="string"/>
+        <UnifiedSocialCreditCodeOfPurchaser elementName="UnifiedSocialCreditCodeOfPurchaser" elementNsName="atr" elementValueType="string"/>
+        <OriginalElectronicInvoiceAirTransportReceiptNumber elementName="OriginalElectronicInvoiceAirTransportReceiptNumber" elementNsName="atr" elementValueType="string"/>
+        <ReasonOfRushRed elementName="ReasonOfRushRed" elementNsName="atr" elementValueType="string"/>
+    </jsonObject>
+</xbrlJson>

@@ -1,0 +1,92 @@
+schema_id: general-machine-invoice
+name: 通用机打发票
+stage: stage_two_png_ability_pack
+variants:
+  - local-general-machine-invoice
+
+match_rules:
+  required_all:
+    - 通用机打发票
+  required_any:
+    - 发票代码
+    - 发票号码
+    - 顾客名称
+    - 开票单位
+  min_required_any: 2
+
+fields:
+  invoice_code:
+    aliases:
+      - 发票代码
+    required: true
+  invoice_no:
+    aliases:
+      - 发票号码
+    required: true
+  invoice_date:
+    aliases:
+      - 开票日期
+    required: true
+  buyer_name:
+    aliases:
+      - 顾客名称
+    required: true
+  buyer_tax_id:
+    aliases:
+      - 备注
+    required: false
+  seller_name:
+    aliases:
+      - 开票单位
+    required: true
+  seller_tax_id:
+    aliases:
+      - 销货方识别号
+    required: false
+  invoice_type:
+    aliases:
+      - 通用机打发票
+    required: true
+  amount_total:
+    aliases:
+      - 合计
+    required: true
+  tax_total:
+    aliases: []
+    required: true
+  total_with_tax:
+    aliases:
+      - 小写
+    required: true
+
+amount_checks:
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true
+
+layout_rules:
+  item_row:
+    total_fallback_y: 650
+    min_y: 300
+    max_y_before_total: 30
+    max_item_x: 380
+    max_item_len: 12
+    min_amount_delta_x: 300
+    unit_min_x: 560
+    unit_max_x: 780
+    max_unit_len: 3
+    unit_tokens:
+      - 条
+      - 个
+      - 张
+      - 件
+      - 次
+      - 份
+      - 台
+      - 套
+      - kg
+      - KG

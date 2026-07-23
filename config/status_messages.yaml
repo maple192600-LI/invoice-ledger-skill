@@ -1,0 +1,19 @@
+statuses:
+  ready:
+    zh: 通过
+    meaning: Current rules validated the record.
+  review_required:
+    zh: 需复核
+    meaning: Output exists but requires user review.
+  unmodeled:
+    zh: 当前未建模
+    meaning: Current schema does not support this invoice type.
+  failed:
+    zh: 失败
+    meaning: Processing failed with a structured error.
+  duplicate:
+    zh: 重复跳过
+    meaning: Existing invoice_line_key was found.
+  corrected:
+    zh: 已修正
+    meaning: Existing draft row was updated after correction.

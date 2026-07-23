@@ -1,0 +1,2 @@
+stage: stage_two_ocr_auto
+description: Placeholder config path intercepted by fp_ledger.py. It selects runtime_ocr_gpu.yaml when nvidia-smi reports an NVIDIA GPU, otherwise runtime_ocr_cpu.yaml.

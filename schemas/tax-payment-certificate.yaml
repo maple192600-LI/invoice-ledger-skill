@@ -1,0 +1,88 @@
+schema_id: tax-payment-certificate
+name: 税收完税证明
+stage: stage_two_png_ability_pack
+variants:
+  - tax-payment-certificate
+
+match_rules:
+  required_all:
+    - 税收完税证明
+  required_any:
+    - 填发日期
+    - 税务机关
+    - 纳税人识别号
+    - 税种
+  min_required_any: 1
+
+fields:
+  invoice_code:
+    aliases: []
+    required: false
+  invoice_no:
+    aliases:
+      - 税收完税证明号
+    required: true
+  invoice_date:
+    aliases:
+      - 填发日期
+    required: true
+  buyer_name:
+    aliases:
+      - 纳税人名称
+    required: true
+  buyer_tax_id:
+    aliases:
+      - 纳税人识别号
+    required: false
+  seller_name:
+    aliases:
+      - 税务机关
+    required: true
+  seller_tax_id:
+    aliases: []
+    required: false
+  invoice_type:
+    aliases:
+      - 税收完税证明
+    required: true
+  amount_total:
+    aliases:
+      - 金额合计
+    required: true
+  tax_total:
+    aliases: []
+    required: true
+  total_with_tax:
+    aliases:
+      - 金额合计
+    required: true
+
+amount_checks:
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true
+
+layout_rules:
+  taxpayer_name:
+    min_y: 190
+    max_y: 280
+    min_x: 700
+    max_x: 900
+    min_len: 1
+    max_len: 5
+  simple_items:
+    min_y: 300
+    max_y: 470
+    max_name_x: 700
+    exclude_terms:
+      - 原凭证号
+      - 税种
+      - 品目名称
+      - 税款
+      - 入库
+      - 实缴
+      - 退金
