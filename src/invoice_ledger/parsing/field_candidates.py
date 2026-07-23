@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ..contracts import (
@@ -28,6 +29,35 @@ def _shared_fallback_fields(schema: dict[str, Any]) -> set[str]:
     if not isinstance(value, list):
         return set()
     return {str(item) for item in value}
+
+
+_RED_INVOICE_SIGNALS = ("红字发票", "（负数）", "(负数)", "被红冲", "红字信息确认单", "红冲")
+_RE_ORIGINAL_NO = re.compile(r"被红冲蓝字发票号码[：:]\s*([0-9A-Z]+)")
+_RE_ORIGINAL_CODE = re.compile(r"被红冲蓝字发票代码[：:]\s*([0-9A-Z]+)")
+_RE_CONFIRM_NO = re.compile(r"红字发票信息确认单编号[：:]\s*([0-9A-Z]+)")
+
+
+def _extract_red_invoice_signals(lines: list[str], fields: dict[str, list[FieldCandidate]]) -> None:
+    """识别红冲(负数)发票信号 + 抽取备注区红冲关联字段。
+
+    信号：票面"红字发票"标识 / 价税合计"（负数）"前缀 / 备注"被红冲蓝字"/"红字信息确认单"。
+    红冲关联：被红冲蓝字发票号码/代码、红字发票信息确认单编号。
+    """
+    joined = "\n".join(lines)
+    if any(signal in joined for signal in _RED_INVOICE_SIGNALS):
+        _add(fields, "is_red_invoice", "是", "red invoice signal", 0.9)
+    for line in lines:
+        if not any(key in line for key in ("被红冲蓝字", "红字信息确认单")):
+            continue
+        match = _RE_ORIGINAL_NO.search(line)
+        if match:
+            _add(fields, "red_original_no", match.group(1), "remark red ref", 0.85)
+        match = _RE_ORIGINAL_CODE.search(line)
+        if match:
+            _add(fields, "red_original_code", match.group(1), "remark red ref", 0.85)
+        match = _RE_CONFIRM_NO.search(line)
+        if match:
+            _add(fields, "red_confirm_no", match.group(1), "remark red ref", 0.85)
 
 
 def _extract_schema_specific_candidates(
@@ -163,6 +193,7 @@ def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -
     if not used_traditional_vat and (not used_schema_specific or "names_and_tax_ids" in shared_fallback_fields):
         _extract_names_and_tax_ids(lines, fields, schema, text_units)
     _extract_money_totals(lines, fields, schema, text_units)
+    _extract_red_invoice_signals(lines, fields)
     if not used_traditional_vat:
         _extract_items_from_text_units(text_units, fields, schema)
     _normalize_invoice_type_from_context(lines, fields, decision, schema)

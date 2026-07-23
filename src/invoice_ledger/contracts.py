@@ -239,6 +239,10 @@ class InvoiceFields(ContractModel):
     seller_name: str | None = None
     seller_tax_id: str | None = None
     invoice_type: str | None = None
+    is_red_invoice: str | None = None
+    red_original_no: str | None = None
+    red_original_code: str | None = None
+    red_confirm_no: str | None = None
     amount_total: Decimal | None = None
     tax_total: Decimal | None = None
     total_with_tax: Decimal | None = None

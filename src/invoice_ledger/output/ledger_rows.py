@@ -6,7 +6,7 @@ from decimal import Decimal
 from hashlib import sha1
 from pathlib import Path
 
-from ..contracts import InvoiceItem, InvoiceRecord, LedgerRow, RecognitionStatus, normalize_amount
+from ..contracts import InvoiceFields, InvoiceItem, InvoiceRecord, LedgerRow, RecognitionStatus, normalize_amount
 from ..validation.review_notes import user_review_remark
 
 
@@ -147,6 +147,29 @@ def _item_context_remark(item: InvoiceItem) -> str:
     return "；".join(parts)
 
 
+def _is_positive_invoice(invoice: InvoiceFields) -> str:
+    """是否正数发票：金额为负 或 命中红冲信号 → '否'(红冲/负数)，否则 '是'。"""
+    if invoice.total_with_tax is not None and invoice.total_with_tax < 0:
+        return "否"
+    if invoice.is_red_invoice == "是":
+        return "否"
+    return "是"
+
+
+def _invoice_red_context(invoice: InvoiceFields) -> str:
+    """红冲关联字段序列化，导出至 context_remark 供人工复核（不进 Excel 新列）。"""
+    if invoice.is_red_invoice != "是":
+        return ""
+    parts: list[str] = ["红冲发票"]
+    if invoice.red_original_no:
+        parts.append(f"被红冲蓝字号码：{invoice.red_original_no}")
+    if invoice.red_original_code:
+        parts.append(f"被红冲蓝字代码：{invoice.red_original_code}")
+    if invoice.red_confirm_no:
+        parts.append(f"红字信息确认单：{invoice.red_confirm_no}")
+    return "；".join(parts)
+
+
 def _base_values(
     record: InvoiceRecord,
     run_id: str,
@@ -173,7 +196,7 @@ def _base_values(
         "seller_name": invoice.seller_name,
         "seller_tax_id": invoice.seller_tax_id,
         "invoice_type": invoice.invoice_type,
-        "is_positive_invoice": "否" if (invoice.total_with_tax is not None and invoice.total_with_tax < 0) else "是",
+        "is_positive_invoice": _is_positive_invoice(invoice),
         "invoice_amount_total": invoice.amount_total,
         "invoice_tax_total": invoice.tax_total,
         "invoice_total_with_tax": invoice.total_with_tax,
@@ -217,8 +240,11 @@ def build_ledger_rows(
 
     base_review_remark = "；".join(part for part in [review_remark, reconciliation_remark] if part)
     row_status = RecognitionStatus.REVIEW_REQUIRED if reconciliation_status == "需复核" else status
+    invoice_red_context = _invoice_red_context(record.invoice)
     for item in row_items:
         context_remark = _item_context_remark(item)
+        if invoice_red_context:
+            context_remark = "；".join(part for part in [context_remark, invoice_red_context] if part)
         row_remark = "；".join(part for part in [base_review_remark, context_remark] if part)
         detail_base = _base_values(record, run_id, processed_at, row_status, row_remark)
         invoice_line_key = _line_key(record, item)
