@@ -180,6 +180,8 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
 
 
 def _variant_identity_issues(record: InvoiceRecord, schema: dict[str, Any]) -> list[str]:
+    if record.variant_id in schema.get("unverified_variants", []):
+        return [f"未验收变体 {record.variant_id}"]
     is_standard_family = (
         schema.get("schema_id") == "standard-invoice"
         or schema.get("extends") == "standard-invoice"

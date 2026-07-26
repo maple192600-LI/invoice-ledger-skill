@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import unittest
 
-from invoice_ledger.contracts import TextUnit, TextUnits
+from invoice_ledger.contracts import InvoiceUnit, RecognitionStatus, TextUnit, TextUnits
 from invoice_ledger.parsing._line_item_ocr_table import _extract_freight_subtable
 from invoice_ledger.parsing.field_candidates import generate_field_candidates
+from invoice_ledger.parsing.field_resolver import resolve_invoice_record
 from invoice_ledger.schema.schema_loader import load_schema
 from invoice_ledger.schema.schema_router import decide_schema
+from invoice_ledger.validation.record_validator import validate_invoice_record
 
 
 def text_units(text: str) -> TextUnits:
@@ -85,6 +87,37 @@ class FreightTollModelsTest(unittest.TestCase):
             decide_schema(text_units("电子发票 发票号码 开票日期 价税合计\n不动产经营租赁服务\n停车费")).schema_id,
             "real-estate-operating-lease",
         )
+
+    def test_unverified_non_tax_etcc_recharge_stays_review_and_does_not_guess_tax(self) -> None:
+        units = text_units("""电子发票（普通发票）
+发票号码：25142000000026194342
+开票日期：2026年07月26日
+ETC客户服务机构
+ETC充值
+*预付卡充值* 服务 次 1 100.00 100.00 不征税
+不征税
+价税合计（小写）¥100.00""")
+        decision = decide_schema(units)
+        self.assertEqual(decision.schema_id, "toll-invoice")
+        self.assertEqual(decision.variant_id, "不征税通行费")
+        record = validate_invoice_record(
+            resolve_invoice_record(
+                InvoiceUnit(
+                    invoice_unit_id=units.invoice_unit_id,
+                    source_file="sample.pdf",
+                    page_range=[1],
+                    unit_type="pdf_page",
+                    status=RecognitionStatus.READY,
+                ),
+                decision,
+                generate_field_candidates(units, decision),
+            )
+        )
+        self.assertEqual(record.items[0].toll_variant, "不征税通行费")
+        self.assertIsNone(record.items[0].line_tax_amount)
+        self.assertIsNone(record.invoice.tax_total)
+        self.assertEqual(record.quality.status.value, "review_required")
+        self.assertIn("未验收变体 不征税通行费", record.quality.remark)
 
 
 if __name__ == "__main__":

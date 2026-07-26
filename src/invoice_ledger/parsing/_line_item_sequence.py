@@ -54,8 +54,8 @@ def _numeric_line_item(line: str, previous_names: list[str]) -> dict[str, Any] |
             "unit_price": match.group("unit_price"),
             "line_amount": _clean_money(match.group("amount")),
             "tax_rate": rate,
-            "line_tax_amount": "0.00",
-            "line_total_with_tax": _clean_money(match.group("amount")),
+            "line_tax_amount": None,
+            "line_total_with_tax": None,
         }
 
     rate_end = rate_match.end()
@@ -275,9 +275,9 @@ def _extract_sequence_item(
             amount_match = re.search(r"\d+(?:\.\d+)?", amount_line)
             amount = _clean_money(amount_match.group(0)) if amount_match else None
             tax_rate = rate_match.group(1)
-            tax_amount = "0.00" if tax_rate == "不征税" else None
+            tax_amount = None
             building_parts, next_index = _building_sequence_parts(lines, index + 3, name_parts)
-            total = amount if tax_amount == "0.00" else None
+            total = None
             return (
                 {
                     **building_parts,

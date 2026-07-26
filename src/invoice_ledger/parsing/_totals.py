@@ -73,9 +73,6 @@ def _extract_money_totals_from_logical_lines(
 
 
 def _extract_money_totals(lines: list[str], fields: dict[str, list[FieldCandidate]], schema: dict[str, Any], text_units: TextUnits | None = None) -> None:
-    if "不征税" in _joined(lines):
-        _add(fields, "tax_total", "0.00", "不征税", 0.75)
-
     if text_units is not None:
         _extract_money_totals_from_logical_lines(text_units, fields)
 

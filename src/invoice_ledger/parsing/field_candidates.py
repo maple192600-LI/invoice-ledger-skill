@@ -78,11 +78,12 @@ def _enrich_special_items(
                 continue
             if payloads[0].get(str(field_name)) not in (None, ""):
                 continue
-            for pattern in spec.get("patterns", []):
+            for pattern_spec in spec.get("patterns", []):
+                pattern = pattern_spec.get("pattern") if isinstance(pattern_spec, dict) else pattern_spec
                 match = re.search(str(pattern), joined)
                 if not match:
                     continue
-                value = spec.get("value")
+                value = pattern_spec.get("value", spec.get("value")) if isinstance(pattern_spec, dict) else spec.get("value")
                 if value is None:
                     group = int(spec.get("group", 1))
                     value = match.group(group)

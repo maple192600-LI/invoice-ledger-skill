@@ -13,6 +13,10 @@ def _joined_text(text_units: TextUnits) -> str:
 
 
 def _schema_match_score(text: str, schema: dict[str, Any]) -> int:
+    unverified_variant, unverified_signals = _unverified_variant_match(schema, text)
+    if unverified_variant:
+        return len(unverified_signals)
+
     rules = schema.get("match_rules", {})
     if not isinstance(rules, dict):
         return 0
@@ -39,7 +43,25 @@ def _schema_match_score(text: str, schema: dict[str, Any]) -> int:
     return len(required_all) + len(required_exact_lines) + any_score
 
 
+def _unverified_variant_match(schema: dict[str, Any], text: str) -> tuple[str | None, list[str]]:
+    variants = schema.get("unverified_variants", [])
+    rules = schema.get("unverified_variant_rules", {})
+    if not isinstance(variants, list) or not isinstance(rules, dict):
+        return None, []
+    for variant in variants:
+        spec = rules.get(variant, {})
+        if not isinstance(spec, dict):
+            continue
+        required_all = [str(term) for term in spec.get("required_all", [])]
+        if required_all and all(term in text for term in required_all):
+            return str(variant), required_all
+    return None, []
+
+
 def _variant_id(schema: dict[str, Any], text: str) -> str | None:
+    unverified_variant, _ = _unverified_variant_match(schema, text)
+    if unverified_variant:
+        return unverified_variant
     variants = schema.get("variants", [])
     for candidate_variant, spec in schema.get("variant_rules", {}).items():
         if any(keyword in text for keyword in spec.get("keywords", [])):

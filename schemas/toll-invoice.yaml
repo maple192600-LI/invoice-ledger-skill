@@ -24,8 +24,10 @@ fields:
 item_context_patterns:
   toll_variant:
     patterns:
-      - '\d+(?:\.\d+)?%'
-    value: 征税
+      - pattern: '\d+(?:\.\d+)?%'
+        value: 征税
+      - pattern: '不征税'
+        value: 不征税通行费
   vehicle_plate_no:
     patterns:
       - '(?:车牌号码|车牌号)[：:]?\s*([\u4e00-\u9fff][A-Z][A-Z0-9]{5,6})'
@@ -45,3 +47,10 @@ item_context_patterns:
 
 unverified_variants:
   - 不征税通行费
+
+unverified_variant_rules:
+  不征税通行费:
+    required_all:
+      - ETC
+      - 充值
+      - 不征税
