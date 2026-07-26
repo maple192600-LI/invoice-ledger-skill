@@ -8,6 +8,7 @@ __pycache__/
 
 .ocr_cache/
 .workbuddy/
+private-tests/
 
 output/
 outputs/
