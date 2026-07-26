@@ -342,7 +342,7 @@ def _extract_items_from_text_units(
                 value = json.dumps(item, ensure_ascii=False, sort_keys=True)
                 _add(fields, "items", value, f"ocr table line item {index}", 0.86)
             return
-    if text_units.source != "ocr" and len(text_units.page_range) > 1:
+    if text_units.source != "ocr":
         coord_items = _extract_digital_text_table_items(text_units, schema)
         if coord_items:
             for index, item in enumerate(coord_items, start=1):

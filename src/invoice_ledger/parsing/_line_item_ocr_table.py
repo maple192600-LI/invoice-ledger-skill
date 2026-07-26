@@ -12,11 +12,55 @@ from ._helpers import _center_x, _compact_text, _is_money_text, _ocr_table_item,
 from ._line_item_sequence_helpers import _textual_spec_tokens
 
 
-def _extract_ocr_table_items(text_units: TextUnits, schema: dict[str, Any]) -> list[dict[str, Any]]:
+def _ocr_table_layout(text_units: TextUnits, schema: dict[str, Any]) -> tuple[dict[str, Any], dict[int, float]]:
+    """从 OCR 表头动态推导列边界，并找出每页的合计截止线。"""
     table_config = schema.get("ocr_table", {})
-    if not isinstance(table_config, dict):
-        table_config = {}
-    item_start_max_x = float(table_config.get("item_start_max_x", float("inf")))
+    config = dict(table_config) if isinstance(table_config, dict) else {}
+    text_to_col = _header_text_to_col(schema)
+    units = [unit for unit in text_units.units if unit.text.strip()]
+    headers: dict[int, dict[int, list[tuple[str, float]]]] = defaultdict(lambda: defaultdict(list))
+    rows: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
+    for unit in units:
+        # OCR 表头各列的基线可相差 1 至 2px，按 5px 合桶才是同一视觉行。
+        y_key = round(_y0(unit) / 5.0) * 5
+        rows[unit.page][y_key].append(unit.text)
+        column = text_to_col.get(_compact_text(unit.text))
+        if column:
+            headers[unit.page][y_key].append((column, _center_x(unit)))
+
+    centers: dict[str, list[float]] = defaultdict(list)
+    header_y: dict[int, float] = {}
+    for page, buckets in headers.items():
+        y_key, pairs = max(buckets.items(), key=lambda item: len({column for column, _ in item[1]}))
+        if len({column for column, _ in pairs}) < 2:
+            continue
+        header_y[page] = float(y_key)
+        for column, center in pairs:
+            centers[column].append(center)
+    if len(centers) >= 2:
+        ordered = sorted(((column, sum(values) / len(values)) for column, values in centers.items()), key=lambda item: item[1])
+        config["column_right_edges"] = {
+            column: (center + ordered[index + 1][1]) / 2
+            for index, (column, center) in enumerate(ordered[:-1])
+        }
+        config["last_column"] = ordered[-1][0]
+        config["use_center_x"] = True
+
+    end_y: dict[int, float] = {}
+    for page, y in header_y.items():
+        for y_key in sorted(rows[page]):
+            if y_key <= y + 4:
+                continue
+            row = _compact_text("".join(rows[page][y_key]))
+            if "价税合计" in row or "合计" in row or "备注" in row:
+                end_y[page] = float(y_key)
+                break
+    return config, end_y
+
+
+def _extract_ocr_table_items(text_units: TextUnits, schema: dict[str, Any]) -> list[dict[str, Any]]:
+    table_config, end_y_by_page = _ocr_table_layout(text_units, schema)
+    item_start_max_x = float(table_config.get("column_right_edges", {}).get("item_name", table_config.get("item_start_max_x", float("inf"))))
     end_marker_min_x = float(table_config.get("end_marker_min_x", float("inf")))
     end_marker_min_y_delta = float(table_config.get("end_marker_min_y_delta", float("inf")))
     textual_spec_tokens = _textual_spec_tokens(schema)
@@ -24,14 +68,18 @@ def _extract_ocr_table_items(text_units: TextUnits, schema: dict[str, Any]) -> l
     item_starts = [
         index
         for index, unit in enumerate(units)
-        if unit.text.strip().startswith("*") and _x0(unit) < item_start_max_x
+        if unit.text.strip().startswith("*")
+        and _x0(unit) < item_start_max_x
+        and (unit.page not in end_y_by_page or _y0(unit) < end_y_by_page[unit.page])
     ]
     items: list[dict[str, Any]] = []
     for start_position, start_index in enumerate(item_starts):
         end_index = item_starts[start_position + 1] if start_position + 1 < len(item_starts) else len(units)
         group: list[TextUnit] = []
         for unit in units[start_index:end_index]:
-            if unit.text.strip() in {"备注"} or "价税合计" in unit.text:
+            if (
+                unit.page in end_y_by_page and _y0(unit) >= end_y_by_page[unit.page]
+            ) or unit.text.strip() in {"备注"} or "价税合计" in unit.text:
                 break
             if (
                 unit.text.strip().startswith("¥")
@@ -111,7 +159,8 @@ def _derive_digital_edges(
     for span in spans:
         column = text_to_col.get(_compact_text(span["text"]))
         if column:
-            page_buckets[span["page"]][round(span["y0"])].append(
+            # 同一视觉表头的 PDF span 常有不足 1px 的基线误差，按 5px 合桶。
+            page_buckets[span["page"]][round(span["y0"] / 5.0) * 5].append(
                 (column, (span["x0"] + span["x1"]) / 2)
             )
     col_center: dict[str, float] = {}
