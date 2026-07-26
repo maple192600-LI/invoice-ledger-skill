@@ -166,6 +166,29 @@ def _item_context_remark(item: InvoiceItem) -> str:
     freight = _freight_context(item)
     if freight:
         parts.append(freight)
+    labels = (
+        ("产权证书/不动产权证号", item.property_certificate_no),
+        ("面积单位", item.area_unit),
+        ("不动产地址", item.real_estate_address),
+        ("租赁开始日期", item.lease_start_date),
+        ("租赁结束日期", item.lease_end_date),
+        ("跨地（市）标志", item.cross_city_flag),
+        ("出行人", item.traveler_name),
+        ("有效身份证件号", item.traveler_id),
+        ("出行日期", item.travel_date),
+        ("出发地", item.departure_place),
+        ("到达地", item.arrival_place),
+        ("等级", item.travel_class),
+        ("交通工具类型", item.transport_type),
+        ("通行费类型", item.toll_variant),
+        ("车牌号", item.vehicle_plate_no),
+        ("入口", item.toll_entrance),
+        ("出口", item.toll_exit),
+        ("通行时间", item.passage_time),
+    )
+    parts.extend(f"{label}：{value}" for label, value in labels if value)
+    if item.discount_for_line_no is not None:
+        parts.append(f"折扣行，关联第{item.discount_for_line_no}行")
     return "；".join(dict.fromkeys(part for part in parts if part))
 
 

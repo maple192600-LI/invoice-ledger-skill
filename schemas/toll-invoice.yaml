@@ -1,0 +1,22 @@
+schema_id: toll-invoice
+name: 通行费
+extends: standard-invoice
+special_invoice_type_value: 通行费
+
+match_rules:
+  required_all:
+    - 通行费
+    - 站入
+    - 站出
+
+fields:
+  toll_variant:
+    required: true
+  vehicle_plate_no:
+    required: true
+  toll_entrance:
+    required: true
+  toll_exit:
+    required: true
+  passage_time:
+    required: true

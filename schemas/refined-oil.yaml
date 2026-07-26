@@ -1,0 +1,8 @@
+schema_id: refined-oil
+name: 成品油
+extends: standard-invoice
+special_invoice_type_value: 成品油
+
+match_rules:
+  required_all:
+    - 成品油

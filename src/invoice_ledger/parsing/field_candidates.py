@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import json
 from typing import Any
 
 from ..contracts import (
@@ -41,12 +42,64 @@ _SPECIAL_INVOICE_TYPES = {"建筑服务", "成品油"}
 def _extract_special_invoice_type(
     lines: list[str],
     fields: dict[str, list[FieldCandidate]],
+    schema: dict[str, Any],
 ) -> None:
+    configured_value = schema.get("special_invoice_type_value")
+    if configured_value:
+        _add(fields, "special_invoice_type", str(configured_value), "schema route", 0.99)
+        return
     for line in lines:
         value = line.strip()
         if value in _SPECIAL_INVOICE_TYPES:
             _add(fields, "special_invoice_type", value, line, 0.98)
             return
+
+
+def _enrich_special_items(
+    lines: list[str],
+    fields: dict[str, list[FieldCandidate]],
+    schema: dict[str, Any],
+) -> None:
+    candidates = fields.get("items", [])
+    if not candidates:
+        return
+    payloads: list[dict[str, Any]] = []
+    for candidate in candidates:
+        try:
+            payloads.append(json.loads(candidate.value))
+        except json.JSONDecodeError:
+            return
+
+    joined = "\n".join(lines)
+    patterns = schema.get("item_context_patterns", {})
+    if isinstance(patterns, dict):
+        for field_name, spec in patterns.items():
+            if not isinstance(spec, dict):
+                continue
+            for pattern in spec.get("patterns", []):
+                match = re.search(str(pattern), joined)
+                if not match:
+                    continue
+                value = spec.get("value")
+                if value is None:
+                    group = int(spec.get("group", 1))
+                    value = match.group(group)
+                payloads[0][str(field_name)] = str(value).strip()
+                break
+
+    previous_regular_line: int | None = None
+    for index, payload in enumerate(payloads, start=1):
+        line_no = int(payload.get("line_no") or index)
+        amount = str(payload.get("line_amount") or "")
+        tax = str(payload.get("line_tax_amount") or "")
+        if amount.startswith("-") or tax.startswith("-"):
+            if previous_regular_line is not None:
+                payload["discount_for_line_no"] = previous_regular_line
+        else:
+            previous_regular_line = line_no
+
+    for candidate, payload in zip(candidates, payloads):
+        candidate.value = json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
 def _extract_red_invoice_signals(lines: list[str], fields: dict[str, list[FieldCandidate]]) -> None:
@@ -193,7 +246,7 @@ def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -
             _add(fields, field_name, value, f"party geometry {field_name}", 0.84, ["weak_geometry"])
     shared_fallback_fields = _shared_fallback_fields(schema)
     _extract_invoice_type(lines, fields, schema)
-    _extract_special_invoice_type(lines, fields)
+    _extract_special_invoice_type(lines, fields, schema)
     if not fields.get("invoice_no"):
         _extract_invoice_number(lines, fields, schema)
     invoice_no_candidate = fields.get("invoice_no", [None])[0]
@@ -210,6 +263,7 @@ def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -
     _extract_red_invoice_signals(lines, fields)
     if not used_traditional_vat:
         _extract_items_from_text_units(text_units, fields, schema)
+        _enrich_special_items(lines, fields, schema)
     _normalize_invoice_type_from_context(lines, fields, decision, schema)
     _add_ocr_confidence_risks(text_units, fields)
 

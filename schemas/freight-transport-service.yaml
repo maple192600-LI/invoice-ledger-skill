@@ -1,0 +1,23 @@
+schema_id: freight-transport-service
+name: 货物运输服务
+extends: standard-invoice
+special_invoice_type_value: 货物运输服务
+
+match_rules:
+  required_all:
+    - 货物运输服务
+    - 运输工具种类
+    - 起运地
+    - 到达地
+
+fields:
+  transport_vehicle_type:
+    required: true
+  transport_vehicle_no:
+    required: true
+  origin_place:
+    required: true
+  destination_place:
+    required: true
+  transport_goods_name:
+    required: true

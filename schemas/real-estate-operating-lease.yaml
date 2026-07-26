@@ -1,0 +1,18 @@
+schema_id: real-estate-operating-lease
+name: 不动产经营租赁服务
+extends: standard-invoice
+special_invoice_type_value: 不动产经营租赁服务
+
+match_rules:
+  required_all:
+    - 不动产经营租赁服务
+
+fields:
+  real_estate_address:
+    required: true
+  lease_start_date:
+    required: true
+  lease_end_date:
+    required: true
+  cross_city_flag:
+    required: true

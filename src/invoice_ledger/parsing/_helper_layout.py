@@ -138,6 +138,7 @@ def _ocr_table_item(
     amount_parts: list[str] = []
     rate_parts: list[str] = []
     tax_parts: list[str] = []
+    extra_parts: dict[str, list[str]] = {}
 
     for unit in sorted(units, key=lambda item: (_y0(item), _x0(item))):
         text = unit.text.strip()
@@ -164,8 +165,10 @@ def _ocr_table_item(
             amount_parts.append(text)
         elif column_name == "tax_rate":
             rate_parts.append(text)
-        else:
+        elif column_name == "line_tax_amount":
             tax_parts.append(text)
+        else:
+            extra_parts.setdefault(column_name, []).append(text)
 
     item_name = _join_item_parts(name_parts + extra_name_parts)
     spec_model = _join_item_parts(spec_parts)
@@ -196,7 +199,7 @@ def _ocr_table_item(
             unit_price = quantity
             quantity = "1"
     total = _clean_money(str(Decimal(amount) + Decimal(tax_amount)))
-    return {
+    result = {
         "item_name": item_name,
         "spec_model": spec_model,
         "unit": _unit_from_parts(unit_parts),
@@ -207,6 +210,14 @@ def _ocr_table_item(
         "line_tax_amount": tax_amount,
         "line_total_with_tax": total,
     }
+    result.update(
+        {
+            column_name: _join_item_parts(parts)
+            for column_name, parts in extra_parts.items()
+            if parts
+        }
+    )
+    return result
 
 
 def _normalize_ocr_item(item: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:

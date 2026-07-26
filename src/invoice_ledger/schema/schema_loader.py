@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from copy import deepcopy
 from typing import Any
 
 import yaml
@@ -18,7 +19,22 @@ def load_schema(schema_id: str = "standard-invoice") -> dict[str, Any]:
         loaded = yaml.safe_load(file)
     if not isinstance(loaded, dict):
         raise ValueError(f"Invalid schema: {schema_id}")
+    parent_id = loaded.get("extends")
+    if parent_id:
+        if str(parent_id) == schema_id:
+            raise ValueError(f"Schema cannot extend itself: {schema_id}")
+        loaded = _deep_merge(load_schema(str(parent_id)), loaded)
     return loaded
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
 
 
 @lru_cache(maxsize=1)
