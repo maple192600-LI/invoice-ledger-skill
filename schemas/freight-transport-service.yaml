@@ -9,6 +9,8 @@ match_rules:
     - 运输工具种类
     - 起运地
     - 到达地
+  exclude_any:
+    - 收派服务
 
 fields:
   transport_vehicle_type:

@@ -20,3 +20,20 @@ fields:
     required: true
   passage_time:
     required: true
+
+item_context_patterns:
+  toll_variant:
+    patterns:
+      - '(不征税|征税)'
+  vehicle_plate_no:
+    patterns:
+      - '(?:车牌号码|车牌号)[：:]?\s*([\u4e00-\u9fff][A-Z][A-Z0-9]{5,6})'
+  toll_entrance:
+    patterns:
+      - '(?:入口站?|驶入站)[：:]?\s*([^\s]+)'
+  toll_exit:
+    patterns:
+      - '(?:出口站?|驶出站)[：:]?\s*([^\s]+)'
+  passage_time:
+    patterns:
+      - '(?:通行时间|通行日期)[：:]?\s*(\d{4}(?:年\d{1,2}月\d{1,2}日?|[-/]\d{1,2}[-/]\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)'
