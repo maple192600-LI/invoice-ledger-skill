@@ -18,29 +18,51 @@ def _text_height(units: list[TextUnit]) -> float:
     return median(heights) if heights else 12.0
 
 
+def _cluster_by_page_y(
+    items: list[Any],
+    page_of: Any,
+    y_of: Any,
+    tolerance: float,
+) -> dict[int, list[tuple[float, list[Any]]]]:
+    clustered: dict[int, list[tuple[float, list[Any]]]] = defaultdict(list)
+    by_page: dict[int, list[Any]] = defaultdict(list)
+    for item in items:
+        by_page[page_of(item)].append(item)
+    for page, page_items in by_page.items():
+        for item in sorted(page_items, key=y_of):
+            y = float(y_of(item))
+            if clustered[page] and y - clustered[page][-1][0] <= tolerance:
+                clustered[page][-1][1].append(item)
+            else:
+                clustered[page].append((y, [item]))
+    return clustered
+
+
 def _ocr_table_layout(text_units: TextUnits, schema: dict[str, Any]) -> tuple[dict[str, Any], dict[int, float]]:
     """从 OCR 表头动态推导列边界，并找出每页的合计截止线。"""
     table_config = schema.get("ocr_table", {})
     config = dict(table_config) if isinstance(table_config, dict) else {}
     text_to_col = _header_text_to_col(schema)
     units = [unit for unit in text_units.units if unit.text.strip()]
-    text_height = _text_height(units)
-    y_bucket = text_height * 5 / 12
-    header_skip = text_height / 3
-    headers: dict[int, dict[int, list[tuple[str, float]]]] = defaultdict(lambda: defaultdict(list))
-    rows: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
-    for unit in units:
-        # OCR 表头各列的基线可相差约 1/8 个字高，按字高比例合桶。
-        y_key = round(_y0(unit) / y_bucket) * y_bucket
-        rows[unit.page][y_key].append(unit.text)
-        column = text_to_col.get(_compact_text(unit.text))
-        if column:
-            headers[unit.page][y_key].append((column, _center_x(unit)))
+    header_units = [unit for unit in units if _compact_text(unit.text) in text_to_col]
+    row_groups = _cluster_by_page_y(
+        units,
+        lambda unit: unit.page,
+        _y0,
+        _text_height(header_units or units) / 4,
+    )
 
     centers: dict[str, list[float]] = defaultdict(list)
     header_y: dict[int, float] = {}
-    for page, buckets in headers.items():
-        y_key, pairs = max(buckets.items(), key=lambda item: len({column for column, _ in item[1]}))
+    for page, rows in row_groups.items():
+        candidates = [
+            (
+                y,
+                [(text_to_col[_compact_text(unit.text)], _center_x(unit)) for unit in row if _compact_text(unit.text) in text_to_col],
+            )
+            for y, row in rows
+        ]
+        y_key, pairs = max(candidates, key=lambda item: len({column for column, _ in item[1]}))
         if len({column for column, _ in pairs}) < 2:
             continue
         header_y[page] = float(y_key)
@@ -57,10 +79,10 @@ def _ocr_table_layout(text_units: TextUnits, schema: dict[str, Any]) -> tuple[di
 
     end_y: dict[int, float] = {}
     for page, y in header_y.items():
-        for y_key in sorted(rows[page]):
-            if y_key <= y + header_skip:
+        for y_key, row_units in row_groups[page]:
+            if y_key <= y:
                 continue
-            row = _compact_text("".join(rows[page][y_key]))
+            row = _compact_text("".join(unit.text for unit in sorted(row_units, key=lambda unit: unit.order)))
             if "价税合计" in row or "合计" in row or "备注" in row:
                 end_y[page] = float(y_key)
                 break
@@ -162,35 +184,44 @@ def _derive_digital_edges(
 
     表头行 = 该页匹配列名最多的 y 桶；数电票各页列 x 一致，合并各页表头得全局列锚点。
     """
-    header_heights = [span["y1"] - span["y0"] for span in spans if span["y1"] > span["y0"]]
-    y_bucket = (median(header_heights) * 5 / 12) if header_heights else 5.0
-    page_buckets: dict[int, dict[float, list[tuple[str, float]]]] = defaultdict(
-        lambda: defaultdict(list)
+    header_spans = [
+        span
+        for span in spans
+        if text_to_col.get(_compact_text(span["text"]))
+    ]
+    if not header_spans:
+        return None
+    heights = [span["y1"] - span["y0"] for span in header_spans if span["y1"] > span["y0"]]
+    page_rows = _cluster_by_page_y(
+        header_spans,
+        lambda span: span["page"],
+        lambda span: span["y0"],
+        (median(heights) / 4) if heights else 3.0,
     )
-    for span in spans:
-        column = text_to_col.get(_compact_text(span["text"]))
-        if column:
-            # 同一视觉表头的 PDF span 常有约 1/8 个字高的基线误差，按字高比例合桶。
-            page_buckets[span["page"]][round(span["y0"] / y_bucket) * y_bucket].append(
-                (column, (span["x0"] + span["x1"]) / 2)
-            )
     col_center: dict[str, float] = {}
-    header_y_by_page: dict[int, float] = {}
-    for page, buckets in page_buckets.items():
-        best_y, best_pairs = max(buckets.items(), key=lambda item: len(item[1]))
+    header_boundary_by_page: dict[int, float] = {}
+    for page, rows in page_rows.items():
+        _, best_row = max(
+            rows,
+            key=lambda row: len({text_to_col[_compact_text(span["text"])] for span in row[1]}),
+        )
+        best_pairs = [
+            (text_to_col[_compact_text(span["text"])], (span["x0"] + span["x1"]) / 2)
+            for span in best_row
+        ]
         distinct = {column for column, _ in best_pairs}
         if len(distinct) >= 2:
-            header_y_by_page[page] = float(best_y)
+            header_boundary_by_page[page] = max(float(span["y0"]) for span in best_row)
             for column, center_x in best_pairs:
                 col_center.setdefault(column, center_x)
-    if len(_DIGITAL_NUMERIC_COLUMNS & set(col_center)) < 2 or not header_y_by_page:
+    if len(_DIGITAL_NUMERIC_COLUMNS & set(col_center)) < 2 or not header_boundary_by_page:
         return None
     ordered = sorted(col_center.items(), key=lambda item: item[1])
     edges: dict[str, float] = {}
     for index, (column, center_x) in enumerate(ordered):
         if index + 1 < len(ordered):
             edges[column] = (center_x + ordered[index + 1][1]) / 2
-    return edges, header_y_by_page
+    return edges, header_boundary_by_page
 
 
 _FREIGHT_TRIGGER_FALLBACK = ("运输工具种类", "起运地", "到达地")
@@ -306,7 +337,7 @@ def _extract_digital_text_table_items(
     derived = _derive_digital_edges(spans, text_to_col)
     if not derived:
         return []
-    edges, header_y_by_page = derived
+    edges, header_boundary_by_page = derived
     table_config = {
         "column_right_edges": edges,
         "last_column": "line_tax_amount",
@@ -320,8 +351,8 @@ def _extract_digital_text_table_items(
 
     detail_units: list[TextUnit] = []
     for page in sorted(by_page):
-        header_y = header_y_by_page.get(page)
-        if header_y is None:
+        header_boundary = header_boundary_by_page.get(page)
+        if header_boundary is None:
             continue
         page_spans = sorted(by_page[page], key=lambda item: item["y0"])
         y_row: dict[int, list[str]] = defaultdict(list)
@@ -343,7 +374,7 @@ def _extract_digital_text_table_items(
             if preceding_money:
                 total_y = min(total_y, *preceding_money)
         for span in page_spans:
-            if span["y0"] <= header_y + 4:
+            if span["y0"] <= header_boundary:
                 continue
             if total_y is not None and span["y0"] >= total_y:
                 continue

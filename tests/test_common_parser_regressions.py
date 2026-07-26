@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from invoice_ledger.contracts import FieldCandidate, TextUnit, TextUnits
 from invoice_ledger.parsing._line_item_sequence import _extract_items_from_text_units
-from invoice_ledger.parsing._line_item_ocr_table import _extract_ocr_table_items, _ocr_table_layout
+from invoice_ledger.parsing._line_item_ocr_table import _derive_digital_edges, _extract_ocr_table_items, _ocr_table_layout
 from invoice_ledger.parsing._parties import _extract_names_and_tax_ids, _role_party_values_from_columns
 from invoice_ledger.parsing._totals import _extract_money_totals
 from invoice_ledger.schema.schema_loader import load_schema
@@ -85,6 +85,57 @@ class CommonParserRegressionTest(unittest.TestCase):
                 )
                 _extract_money_totals([], fields, self.schema, total_units)
                 self.assertEqual(fields["total_with_tax"][0].value, "113.00")
+
+    def test_ocr_header_is_not_split_at_scaled_bucket_boundary(self) -> None:
+        headers = ["项目名称", "规格型号", "单位", "数量", "单价", "金额", "税率/征收率", "税额"]
+        header_y = [250, 248, 248, 248, 249, 250, 250, 248]
+        values = ["*工业仪表*耐震压力表", "Y60", "个", "1", "86.73", "86.73", "13%", "11.27"]
+        units = [
+            TextUnit(text=text, page=1, bbox=[index * 100, y, index * 100 + 40, y + 19], order=index + 1, source="ocr")
+            for index, (text, y) in enumerate(zip(headers, header_y))
+        ]
+        units += [
+            TextUnit(text=text, page=1, bbox=[index * 100, 290, index * 100 + 40, 309], order=index + 20, source="ocr")
+            for index, text in enumerate(values)
+        ]
+        units += [
+            TextUnit(text="合", page=1, bbox=[0, 335, 20, 354], order=40, source="ocr"),
+            TextUnit(text="计", page=1, bbox=[20, 333, 40, 354], order=41, source="ocr"),
+            TextUnit(text="¥86.73", page=1, bbox=[500, 331, 560, 352], order=42, source="ocr"),
+        ]
+
+        text_units = TextUnits(invoice_unit_id="ocr-boundary", source="ocr", units=units)
+        items = _extract_ocr_table_items(text_units, self.schema)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["line_amount"], "86.73")
+        self.assertEqual(items[0]["line_tax_amount"], "11.27")
+        self.assertLess(_ocr_table_layout(text_units, self.schema)[1][1], 335)
+
+    def test_pdf_header_is_not_split_at_scaled_bucket_boundary(self) -> None:
+        aliases = {
+            "项目名称": "item_name",
+            "规格型号": "spec_model",
+            "单位": "unit",
+            "数量": "quantity",
+            "单价": "unit_price",
+            "金额": "line_amount",
+            "税率/征收率": "tax_rate",
+            "税额": "line_tax_amount",
+        }
+        y_values = [144.816, 144.657, 144.935, 145.312, 145.196, 145.587, 145.075, 144.907]
+        spans = [
+            {"text": text, "x0": index * 100.0, "x1": index * 100.0 + 40, "y0": y, "y1": y + 10.413, "page": 1}
+            for index, (text, y) in enumerate(zip(aliases, y_values))
+        ]
+
+        derived = _derive_digital_edges(spans, aliases)
+
+        self.assertIsNotNone(derived)
+        edges, header_boundary = derived
+        self.assertIn("line_amount", edges)
+        self.assertIn("tax_rate", edges)
+        self.assertLess(header_boundary[1], 155.3)
 
     def test_final_page_total_uses_arithmetic_to_select_cumulative_pair(self) -> None:
         fields: dict = {}
