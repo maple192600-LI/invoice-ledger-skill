@@ -79,7 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--replace-existing",
         action="store_true",
-        help="Clear existing rows in profile-managed sheets before writing new rows.",
+        help="Forbidden compatibility flag. Existing ledger data is append-only.",
     )
     return parser
 
@@ -97,8 +97,8 @@ def _validate_required_runtime_args(args: argparse.Namespace) -> str | None:
         return "Provide exactly one input source: --input or --input-dir."
     if args.write_in_place and args.copy_output:
         return "Refusing conflicting output options: --write-in-place cannot be used with --copy-output."
-    if args.replace_existing and not args.copy_output:
-        return "Refusing --replace-existing without --copy-output because formal collection writes to the original ledger."
+    if args.replace_existing:
+        return "Refusing --replace-existing because invoice ledgers are append-only."
     if args.update_existing:
         return "Refusing --update-existing because profile-managed row update is not implemented yet."
     return None
@@ -393,7 +393,6 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         ledger_rows=ledger_rows,
         recognition_notices=recognition_notices,
         run_id=run_id,
-        clear_existing=args.replace_existing,
     )
     output_workbook = str(output_workbook_path)
     ready_rows = sum(1 for row in ledger_rows if row.recognition_status == RecognitionStatus.READY)

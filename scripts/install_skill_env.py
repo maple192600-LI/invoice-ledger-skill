@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,6 +11,8 @@ from typing import Literal
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 VENV_DIR = PROJECT_ROOT / ".venv"
+LEDGER_TEMPLATE = PROJECT_ROOT / "发票采集台账.xlsx"
+USER_SETTINGS = PROJECT_ROOT / "config" / "user_settings.local.yaml"
 OcrMode = Literal["auto", "gpu", "cpu", "none"]
 
 
@@ -102,6 +105,62 @@ def _run(command: list[str], cwd: Path, verbose: bool = False) -> None:
     raise subprocess.CalledProcessError(result.returncode, command)
 
 
+def _saved_ledger(settings_path: Path = USER_SETTINGS) -> Path | None:
+    if not settings_path.exists():
+        return None
+    try:
+        text = settings_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        value = json.loads(text).get("draft_ledger")
+    except (json.JSONDecodeError, AttributeError):
+        value = next(
+            (
+                line.split(":", 1)[1].strip().strip("'\"")
+                for line in text.splitlines()
+                if line.strip().startswith("draft_ledger:")
+            ),
+            None,
+        )
+    if not value:
+        return None
+    path = Path(value)
+    return path if path.is_file() else None
+
+
+def configure_ledger(
+    location: str,
+    project_root: Path = PROJECT_ROOT,
+) -> tuple[Path, bool]:
+    template = project_root / LEDGER_TEMPLATE.name
+    settings_path = project_root / "config" / USER_SETTINGS.name
+    selected = Path(location).expanduser()
+    if selected.is_dir():
+        destination = selected / template.name
+    elif selected.suffix.lower() == ".xlsx":
+        destination = selected
+    elif not selected.suffix:
+        destination = selected / template.name
+    else:
+        raise ValueError("台账位置必须是文件夹或 .xlsx 文件。")
+    destination = destination.resolve()
+    if destination == template.resolve():
+        raise ValueError("请选择 Skill 根目录以外的位置，根目录台账必须保留为空白母版。")
+    if destination.exists() and not destination.is_file():
+        raise ValueError("所选台账路径不是 Excel 文件。")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    created = not destination.exists()
+    if created:
+        shutil.copy2(template, destination)
+    settings_path.write_text(
+        json.dumps({"draft_ledger": str(destination)}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return destination, created
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Create the project .venv and install invoice skill dependencies into it."
@@ -112,12 +171,36 @@ def main(argv: list[str] | None = None) -> int:
         default="auto",
         help="OCR dependency mode. auto installs GPU OCR when NVIDIA GPU is detected, otherwise CPU OCR.",
     )
+    parser.add_argument(
+        "--ledger",
+        help="User-selected folder or .xlsx path for the persistent invoice ledger.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Stream installer subprocess output.")
     args = parser.parse_args(argv)
 
     if sys.version_info < (3, 11):
         print("Python 3.11+ is required to create this skill environment.", file=sys.stderr)
         return 2
+    saved_ledger = _saved_ledger()
+    ledger_location = args.ledger
+    if saved_ledger is None and not ledger_location:
+        if not sys.stdin.isatty():
+            print(
+                "首次安装必须选择发票采集台账保存位置，请使用 --ledger <文件夹或.xlsx路径>。",
+                file=sys.stderr,
+            )
+            return 2
+        ledger_location = input(
+            "发票采集台账希望保存到哪个文件夹？也可以直接提供完整的 .xlsx 路径："
+        ).strip()
+    if ledger_location:
+        try:
+            saved_ledger, created = configure_ledger(ledger_location)
+        except (OSError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+        action = "已创建" if created else "已沿用"
+        print(f"{action}发票采集台账：{saved_ledger}")
     try:
         plan = build_install_plan(args.ocr)
     except ValueError as exc:

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from copy import copy
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from unicodedata import east_asian_width
 
 from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
 import yaml
 
 from ..contracts import LedgerRow, RecognitionNotice, RecognitionStatus, WriteAction, WriteResult, normalize_date
@@ -57,6 +60,9 @@ ROW_FINGERPRINT_FIELDS = (
     "line_total_with_tax",
     "invoice_total_with_tax",
 )
+
+MIN_COLUMN_WIDTH = 6.0
+MAX_COLUMN_WIDTH = 255.0
 
 
 def _status_labels() -> dict[str, str]:
@@ -349,6 +355,64 @@ def _last_data_row(ws) -> int:
     return 1
 
 
+def _display_width(value: Any) -> int:
+    if value in {None, ""}:
+        return 0
+    if isinstance(value, datetime):
+        text = value.strftime("%Y-%m-%d %H:%M")
+    elif isinstance(value, date):
+        text = value.isoformat()
+    else:
+        text = str(value)
+    return max(
+        (
+            sum(2 if east_asian_width(char) in {"W", "F"} else 1 for char in line)
+            for line in text.splitlines()
+        ),
+        default=0,
+    )
+
+
+def _repair_plain_headers(ws) -> None:
+    styled_header = next(
+        (
+            cell
+            for cell in ws[1]
+            if cell.value not in {None, ""}
+            and cell.fill.fill_type
+            and cell.font.bold
+        ),
+        None,
+    )
+    if styled_header is None:
+        return
+    for cell in ws[1]:
+        if (
+            cell.value not in {None, ""}
+            and not cell.fill.fill_type
+            and not cell.font.bold
+        ):
+            cell._style = copy(styled_header._style)
+
+
+def _autofit_collection_sheet(ws) -> None:
+    last_row = _last_data_row(ws)
+    for column in range(1, ws.max_column + 1):
+        content_width = max(
+            _display_width(ws.cell(row, column).value)
+            for row in range(1, last_row + 1)
+        )
+        width = min(MAX_COLUMN_WIDTH, max(MIN_COLUMN_WIDTH, content_width + 2))
+        ws.column_dimensions[get_column_letter(column)].width = width
+        for row in range(2, last_row + 1):
+            cell = ws.cell(row, column)
+            if cell.alignment.wrap_text is True:
+                alignment = copy(cell.alignment)
+                alignment.wrap_text = False
+                cell.alignment = alignment
+                ws.row_dimensions[row].height = None
+
+
 def _summary_rows(rows: list[LedgerRow]) -> list[LedgerRow]:
     summaries: dict[str, LedgerRow] = {}
     for row in rows:
@@ -373,7 +437,6 @@ def write_with_template_profile(
     template_profile_path: str | Path,
     ledger_rows: list[LedgerRow],
     run_id: str,
-    clear_existing: bool = False,
     recognition_notices: list[RecognitionNotice] | None = None,
 ) -> WriteResult:
     profile = load_template_profile(template_profile_path)
@@ -391,17 +454,7 @@ def write_with_template_profile(
     try:
         for sheet_key, sheet_spec in profile["sheets"].items():
             ws = workbook[str(sheet_spec["name"])]
-            if clear_existing and ws.max_row > 1:
-                cleared_rows = ws.max_row - 1
-                ws.delete_rows(2, cleared_rows)
-                result.actions.append(
-                    {
-                        "action": WriteAction.UPDATED.value,
-                        "sheet": sheet_spec["name"],
-                        "mode": "clear_existing",
-                        "rows": cleared_rows,
-                    }
-                )
+            _repair_plain_headers(ws)
             fields = sheet_spec.get("fields", {})
             mode = sheet_spec.get("mode")
             written = 0
@@ -471,6 +524,8 @@ def write_with_template_profile(
                     "skipped_duplicate_rows": skipped,
                 }
             )
+            if mode == "ledger_rows":
+                _autofit_collection_sheet(ws)
         workbook.save(workbook_path)
     finally:
         workbook.close()

@@ -14,13 +14,21 @@ Process local invoice files into a working Excel collection workbook. Keep norma
 
 ## First Install
 
-Run once after cloning, moving machines, deleting `.venv`, or changing OCR/Paddle/Python setup:
+On first install, ask the user: `发票采集台账希望保存到哪个文件夹？也可以直接提供完整的 .xlsx 路径。`
+
+Pass that answer to the installer:
+
+```powershell
+python scripts\install_skill_env.py --ocr auto --ledger <用户选择的文件夹或.xlsx路径>
+```
+
+The installer copies the root workbook only when the selected target does not exist, saves the selected path locally, creates `.venv`, and installs OCR dependencies. It never overwrites an existing workbook. It selects `requirements-ocr-gpu.txt` when `nvidia-smi` reports an NVIDIA GPU, otherwise `requirements-ocr-cpu.txt`. Use `--verbose` only when installation fails.
+
+After first install, rerun without `--ledger` only when repairing the environment:
 
 ```powershell
 python scripts\install_skill_env.py --ocr auto
 ```
-
-The installer creates `.venv` in the skill folder and installs OCR dependencies there. It selects `requirements-ocr-gpu.txt` when `nvidia-smi` reports an NVIDIA GPU, otherwise `requirements-ocr-cpu.txt`. Use `--verbose` only when installation fails.
 
 Run install from the skill root. Runtime scripts switch to the skill root automatically when invoked by absolute path.
 
@@ -47,12 +55,23 @@ Use `--input` only for one file. Use `--input-dir` for a folder.
 Keep the blank workbook as a source template only:
 
 ```text
-templates/invoice-information-collection.xlsx
+发票采集台账.xlsx
 ```
 
-For real work, copy the blank workbook once to a user/output working ledger, then keep pointing `--draft-ledger` or `--workbook` to that same working ledger for later batches. The writer appends rows and skips likely duplicates by default.
+### First-use ledger location
 
-Do not write directly into `templates/`. Do not create a fresh workbook for each invoice batch unless the user explicitly wants a separate ledger.
+Before the first real collection run, check `config/user_settings.local.yaml`.
+
+- If it contains an existing `draft_ledger` path, reuse that workbook.
+- If the setting is missing, invalid, or the user already provided another workbook, ask exactly one question before copying or processing anything: `发票采集台账希望保存到哪个文件夹？也可以直接提供完整的 .xlsx 路径。`
+- Do not silently choose `output/ledger.xlsx` or any other default location.
+- For a new path, create its parent folder when needed, copy the root `发票采集台账.xlsx` there once, and save the absolute path as `draft_ledger` in `config/user_settings.local.yaml`.
+- If the selected workbook already exists, use it after compatibility validation. Never copy over, clear, replace, or rewrite its existing rows.
+- Later batches reuse that selected workbook. If the saved file was moved or deleted, ask for its new location instead of creating another ledger.
+
+For real work, keep pointing `--draft-ledger` or `--workbook` to that same user-selected ledger. The writer only appends new rows and skips likely duplicates. `--replace-existing` and `--update-existing` are forbidden.
+
+Do not write directly into the root blank template. Do not create a fresh workbook for each invoice batch unless the user explicitly wants a separate ledger.
 
 Before the first formal run against a working ledger, run the cheap compatibility check:
 
@@ -97,7 +116,7 @@ When a long OCR run is still executing, wait for completion and inspect the fina
 Default blank workbook:
 
 ```text
-templates/invoice-information-collection.xlsx
+发票采集台账.xlsx
 ```
 
 Users may replace this workbook. If sheet names, column names, required fields, or mappings change, update:
@@ -106,7 +125,7 @@ Users may replace this workbook. If sheet names, column names, required fields, 
 config/template_profiles/current.yaml
 ```
 
-Keep repository file names ASCII for cross-agent compatibility. Keep workbook sheet names and headers in Chinese when needed.
+Keep code and configuration file names portable. The user-facing root workbook, sheet names, and headers stay in Chinese.
 
 ## Invoice Types
 
