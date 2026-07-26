@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import unittest
 
-from invoice_ledger.contracts import InvoiceSource, InvoiceUnit, RecognitionStatus, TextUnit, TextUnits
-from invoice_ledger.parsing.field_candidates import generate_field_candidates
+from invoice_ledger.contracts import FieldCandidate, InvoiceSource, InvoiceUnit, RecognitionStatus, TextUnit, TextUnits
+from invoice_ledger.parsing.field_candidates import _enrich_special_items, generate_field_candidates
 from invoice_ledger.parsing.field_resolver import resolve_invoice_record
 from invoice_ledger.schema.schema_router import decide_schema
 from invoice_ledger.validation.record_validator import validate_invoice_record
@@ -39,6 +40,20 @@ def record_for(units: TextUnits):
 
 
 class PropertyPassengerModelsTest(unittest.TestCase):
+    def test_schema_context_does_not_overwrite_table_value(self) -> None:
+        candidate = FieldCandidate(
+            value=json.dumps({"area_unit": "平方米"}),
+            source="test",
+            confidence=0.8,
+            evidence="coordinate table",
+        )
+        _enrich_special_items(
+            ["税率 9%"],
+            {"items": [candidate]},
+            {"item_context_patterns": {"area_unit": {"patterns": [r"(9%)"]}}},
+        )
+        self.assertEqual(json.loads(candidate.value)["area_unit"], "平方米")
+
     def test_property_lease_keeps_ticket_values_and_mobile_lease_is_standard(self) -> None:
         property_record = record_for(text_units("""电子发票（普通发票）
 不动产经营租赁服务

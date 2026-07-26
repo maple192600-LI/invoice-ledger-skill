@@ -76,6 +76,8 @@ def _enrich_special_items(
         for field_name, spec in patterns.items():
             if not isinstance(spec, dict):
                 continue
+            if payloads[0].get(str(field_name)) not in (None, ""):
+                continue
             for pattern in spec.get("patterns", []):
                 match = re.search(str(pattern), joined)
                 if not match:

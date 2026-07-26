@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import unittest
+from unittest.mock import patch
 
-from invoice_ledger.contracts import TextUnit, TextUnits
+from invoice_ledger.contracts import FieldCandidate, TextUnit, TextUnits
+from invoice_ledger.parsing._line_item_sequence import _extract_items_from_text_units
 from invoice_ledger.parsing._line_item_ocr_table import _extract_ocr_table_items
 from invoice_ledger.parsing._parties import _extract_names_and_tax_ids
 from invoice_ledger.parsing._totals import _extract_money_totals
@@ -67,6 +70,36 @@ class CommonParserRegressionTest(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["line_amount"], "100.00")
         self.assertEqual(items[0]["line_tax_amount"], "13.00")
+
+    def test_text_sequence_keeps_more_items_than_coordinate_table(self) -> None:
+        text_units = TextUnits(
+            invoice_unit_id="discount",
+            source="pdf_text",
+            units=[unit("*汽油", 0, 10, 1)],
+        )
+        fields: dict = {}
+
+        def add_two_items(_lines, target, _schema) -> None:
+            for line_no in (1, 2):
+                target.setdefault("items", []).append(
+                    FieldCandidate(
+                        value=json.dumps({"line_no": line_no}),
+                        source="test",
+                        confidence=0.8,
+                        evidence="sequence",
+                    )
+                )
+
+        with (
+            patch("invoice_ledger.parsing._line_item_sequence._extract_items", side_effect=add_two_items),
+            patch(
+                "invoice_ledger.parsing._line_item_sequence._extract_digital_text_table_items",
+                return_value=[{"item_name": "*汽油"}],
+            ),
+        ):
+            _extract_items_from_text_units(text_units, fields, self.schema)
+
+        self.assertEqual(len(fields["items"]), 2)
 
 
 if __name__ == "__main__":
