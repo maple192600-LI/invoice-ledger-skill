@@ -59,6 +59,31 @@ class CommonParserRegressionTest(unittest.TestCase):
         self.assertEqual(fields["buyer_tax_id"][-1].value, "92140110MA0KFPPE9P")
         self.assertEqual(fields["seller_tax_id"][-1].value, "91140122778108880D")
 
+    def test_vertical_party_headers_keep_names_inside_header_height(self) -> None:
+        text_units = TextUnits(
+            invoice_unit_id="vertical-party",
+            source="ocr",
+            units=[
+                TextUnit(text="购买方信息", page=1, bbox=[28, 154, 46, 238], order=1, source="ocr"),
+                TextUnit(text="名称：大连嘉世精密机械制造有限公司", page=1, bbox=[58, 158, 304, 172], order=2, source="ocr"),
+                TextUnit(text="销售方信息", page=1, bbox=[504, 154, 521, 238], order=3, source="ocr"),
+                TextUnit(text="名称：上海优定电子科技有限公司", page=1, bbox=[533, 159, 747, 173], order=4, source="ocr"),
+                TextUnit(text="规格型号", page=1, bbox=[197, 248, 264, 269], order=5, source="ocr"),
+                TextUnit(text="单价", page=1, bbox=[558, 249, 607, 268], order=6, source="ocr"),
+            ],
+        )
+        fields: dict = {}
+        _extract_names_and_tax_ids(
+            [item.text for item in text_units.units],
+            fields,
+            self.schema,
+            text_units,
+        )
+        buyer = max(fields["buyer_name"], key=lambda item: item.confidence)
+        seller = max(fields["seller_name"], key=lambda item: item.confidence)
+        self.assertEqual(buyer.value, "大连嘉世精密机械制造有限公司")
+        self.assertEqual(seller.value, "上海优定电子科技有限公司")
+
     def test_ocr_table_uses_header_columns_and_stops_at_total(self) -> None:
         headers = ["项目名称", "规格型号", "单位", "数量", "单价", "金额", "税率", "税额"]
         values = ["*服务", "规格", "项", "2", "50", "100.00", "13%", "13.00"]
