@@ -86,7 +86,11 @@ def _normalize_spaced_date(text: str) -> str | None:
 
 
 def _has_bbox(unit: TextUnit) -> bool:
-    return len(unit.bbox) == 4 and any(float(value) != 0.0 for value in unit.bbox)
+    return (
+        isinstance(unit.bbox, list)
+        and len(unit.bbox) == 4
+        and any(float(value) != 0.0 for value in unit.bbox)
+    )
 
 
 def _units_with_geometry(text_units: TextUnits) -> list[TextUnit]:
