@@ -10,6 +10,8 @@ match_rules:
     - 建筑材料
 
 fields:
+  special_invoice_type:
+    required: true
   service_location:
     required: true
   project_name:
