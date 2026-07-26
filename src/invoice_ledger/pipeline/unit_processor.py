@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,7 @@ from ..contracts import (
 )
 from ..errors import InvoiceLedgerError
 from ..input_profile.file_profile import profile_input_file
-from ..input_profile.invoice_units import build_invoice_units
+from ..input_profile.invoice_units import build_invoice_units, merge_invoice_units
 from ..input_profile.ocr_adapter import run_ocr_batch
 from ..input_profile.pdf_context import PdfProcessingContext
 from ..input_profile.einvoice_xml import parse_einvoice_xml
@@ -38,6 +39,76 @@ from ..parsing.field_resolver import resolve_invoice_record
 from ..schema.schema_router import decide_schema
 from ..validation.deductible_vat import apply_deductible_vat_rules
 from ..validation.record_validator import validate_invoice_record
+
+
+_PAGE_SEQUENCE_PATTERN = re.compile(r"共\s*(\d+)\s*页\s*第\s*(\d+)\s*页")
+_REPEATED_INVOICE_FIELDS = (
+    "invoice_no",
+    "invoice_date",
+    "buyer_name",
+    "buyer_tax_id",
+    "seller_name",
+    "seller_tax_id",
+)
+
+
+def _page_sequence(unit_result: dict[str, Any]) -> tuple[int, int] | None:
+    text_units = unit_result.get("text_units")
+    if text_units is None or text_units.source == "ocr":
+        return None
+    match = _PAGE_SEQUENCE_PATTERN.search(
+        "\n".join(unit.text for unit in text_units.units)
+    )
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
+def _page_invoice_identity(unit_result: dict[str, Any]) -> tuple[str, ...] | None:
+    invoice = unit_result["invoice_record"].invoice
+    values = tuple(
+        str(getattr(invoice, field) or "").strip()
+        for field in _REPEATED_INVOICE_FIELDS
+    )
+    return values if all(values) else None
+
+
+def _merge_confirmed_multipage_units(
+    file_profile: FileProfile,
+    page_results: list[dict[str, Any]],
+) -> list[InvoiceUnit]:
+    units: list[InvoiceUnit] = []
+    index = 0
+    while index < len(page_results):
+        sequence = _page_sequence(page_results[index])
+        if sequence is None or sequence[0] < 2 or sequence[1] != 1:
+            units.append(page_results[index]["invoice_unit"])
+            index += 1
+            continue
+
+        page_count = sequence[0]
+        candidates = page_results[index:index + page_count]
+        identity = _page_invoice_identity(page_results[index])
+        confirmed = (
+            len(candidates) == page_count
+            and identity is not None
+            and all(
+                _page_sequence(result) == (page_count, page_number)
+                and _page_invoice_identity(result) == identity
+                for page_number, result in enumerate(candidates, start=1)
+            )
+        )
+        if not confirmed:
+            units.append(page_results[index]["invoice_unit"])
+            index += 1
+            continue
+
+        units.append(
+            merge_invoice_units(
+                file_profile,
+                [result["invoice_unit"] for result in candidates],
+            )
+        )
+        index += page_count
+    return units
 
 
 def failed_decision(unit_id: str, reason: str) -> SchemaDecision:
@@ -259,7 +330,7 @@ def process_invoice_input(
             runtime_config,
             pdf_context=pdf_context,
         )
-        unit_results = [
+        page_results = [
             process_invoice_unit(
                 unit,
                 file_profile,
@@ -268,6 +339,23 @@ def process_invoice_input(
                 processed_at,
                 pdf_context=pdf_context,
                 preloaded_ocr_results=preloaded_ocr_results,
+            )
+            for unit in invoice_units
+        ]
+        invoice_units = _merge_confirmed_multipage_units(file_profile, page_results)
+        page_results_by_id = {
+            result["invoice_unit"].invoice_unit_id: result
+            for result in page_results
+        }
+        unit_results = [
+            page_results_by_id.get(unit.invoice_unit_id)
+            or process_invoice_unit(
+                unit,
+                file_profile,
+                runtime_config,
+                run_id,
+                processed_at,
+                pdf_context=pdf_context,
             )
             for unit in invoice_units
         ]
