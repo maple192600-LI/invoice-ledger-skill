@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from invoice_ledger.contracts import FieldCandidate, InvoiceSource, InvoiceUnit, RecognitionStatus, TextUnit, TextUnits
+from invoice_ledger.contracts import FieldCandidate, FieldCandidates, InvoiceSource, InvoiceUnit, RecognitionStatus, SchemaDecision, SchemaDecisionStatus, TextUnit, TextUnits
 from invoice_ledger.parsing.field_candidates import _enrich_special_items, generate_field_candidates
 from invoice_ledger.parsing.field_resolver import resolve_invoice_record
 from invoice_ledger.schema.schema_router import decide_schema
@@ -40,6 +40,31 @@ def record_for(units: TextUnits):
 
 
 class PropertyPassengerModelsTest(unittest.TestCase):
+    def test_item_amount_comparison_risk_survives_resolve_and_validate(self) -> None:
+        candidates = FieldCandidates(
+            invoice_unit_id="item-risk",
+            schema_id="standard-invoice",
+            fields={
+                "items": [
+                    FieldCandidate(
+                        value=json.dumps({"line_no": 1, "item_name": "服务", "line_amount": "30.00"}),
+                        source="test",
+                        confidence=0.9,
+                        evidence="sequence",
+                        risk=["item_amount_comparison_failed"],
+                    )
+                ]
+            },
+        )
+        record = resolve_invoice_record(
+            InvoiceUnit(invoice_unit_id="item-risk", source_file="sample.pdf", page_range=[1], unit_type="pdf_page", status=RecognitionStatus.READY),
+            SchemaDecision(invoice_unit_id="item-risk", schema_id="standard-invoice", confidence=0.9, decision=SchemaDecisionStatus.MATCHED),
+            candidates,
+        )
+        validated = validate_invoice_record(record, {"fields": {}, "amount_checks": []})
+        self.assertEqual(validated.quality.status, RecognitionStatus.REVIEW_REQUIRED)
+        self.assertIn("item amount comparison failed", validated.quality.remark)
+
     def test_schema_context_does_not_overwrite_table_value(self) -> None:
         candidate = FieldCandidate(
             value=json.dumps({"area_unit": "平方米"}),

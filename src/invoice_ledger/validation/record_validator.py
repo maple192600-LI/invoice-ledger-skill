@@ -169,6 +169,8 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
             issues.append(f"missing evidence {field_name}")
         if decision.get("conflict") is True or "conflict" in risks:
             issues.append(f"conflict {field_name}")
+        if "item_amount_comparison_failed" in risks:
+            issues.append("item amount comparison failed")
         confidence = _decision_confidence(decision)
         if confidence is not None and confidence < LOW_CONFIDENCE_FLOOR:
             issues.append(f"low confidence {field_name}")
