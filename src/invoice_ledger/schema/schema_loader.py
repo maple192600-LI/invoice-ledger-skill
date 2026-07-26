@@ -14,6 +14,14 @@ from .._paths import PROJECT_ROOT  # noqa: F401  (re-exported for downstream use
 
 @lru_cache(maxsize=16)
 def load_schema(schema_id: str = "standard-invoice") -> dict[str, Any]:
+    return _load_schema(schema_id, ())
+
+
+def _load_schema(schema_id: str, inheritance_chain: tuple[str, ...]) -> dict[str, Any]:
+    if schema_id in inheritance_chain:
+        chain = " -> ".join((*inheritance_chain, schema_id))
+        raise ValueError(f"Schema inheritance cycle: {chain}")
+
     schema_path = PROJECT_ROOT / "schemas" / f"{schema_id}.yaml"
     with schema_path.open("r", encoding="utf-8") as file:
         loaded = yaml.safe_load(file)
@@ -21,9 +29,9 @@ def load_schema(schema_id: str = "standard-invoice") -> dict[str, Any]:
         raise ValueError(f"Invalid schema: {schema_id}")
     parent_id = loaded.get("extends")
     if parent_id:
-        if str(parent_id) == schema_id:
-            raise ValueError(f"Schema cannot extend itself: {schema_id}")
-        loaded = _deep_merge(load_schema(str(parent_id)), loaded)
+        loaded = _deep_merge(
+            _load_schema(str(parent_id), (*inheritance_chain, schema_id)), loaded
+        )
     return loaded
 
 

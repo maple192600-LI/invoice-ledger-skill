@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from invoice_ledger.contracts import (
     InvoiceFields,
@@ -11,6 +14,7 @@ from invoice_ledger.contracts import (
     TextUnit,
     TextUnits,
 )
+from invoice_ledger.schema import schema_loader
 from invoice_ledger.schema.schema_loader import load_schema
 from invoice_ledger.schema.schema_router import decide_schema
 from invoice_ledger.validation.record_validator import validate_invoice_record
@@ -33,6 +37,34 @@ def text_units(text: str) -> TextUnits:
 
 
 class SchemaInheritanceAndRoutingTest(unittest.TestCase):
+    def test_inheritance_cycle_reports_complete_chain(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            schemas = root / "schemas"
+            schemas.mkdir()
+            (schemas / "a.yaml").write_text("extends: b\n", encoding="utf-8")
+            (schemas / "b.yaml").write_text("extends: a\n", encoding="utf-8")
+
+            load_schema.cache_clear()
+            with patch.object(schema_loader, "PROJECT_ROOT", root):
+                with self.assertRaisesRegex(ValueError, r"a -> b -> a"):
+                    load_schema("a")
+            self.assertEqual(load_schema.cache_info().currsize, 0)
+            load_schema.cache_clear()
+
+    def test_self_inheritance_uses_cycle_error(self) -> None:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            schemas = root / "schemas"
+            schemas.mkdir()
+            (schemas / "a.yaml").write_text("extends: a\n", encoding="utf-8")
+
+            load_schema.cache_clear()
+            with patch.object(schema_loader, "PROJECT_ROOT", root):
+                with self.assertRaisesRegex(ValueError, r"a -> a"):
+                    load_schema("a")
+            load_schema.cache_clear()
+
     def test_extension_inherits_standard_fields(self) -> None:
         schema = load_schema("real-estate-operating-lease")
         self.assertIn("invoice_no", schema["fields"])
