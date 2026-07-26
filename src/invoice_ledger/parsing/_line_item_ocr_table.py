@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from statistics import median
 from typing import Any
 
 import fitz
@@ -12,17 +13,25 @@ from ._helpers import _center_x, _compact_text, _is_money_text, _ocr_table_item,
 from ._line_item_sequence_helpers import _textual_spec_tokens
 
 
+def _text_height(units: list[TextUnit]) -> float:
+    heights = [unit.bbox[3] - unit.bbox[1] for unit in units if unit.bbox and unit.bbox[3] > unit.bbox[1]]
+    return median(heights) if heights else 12.0
+
+
 def _ocr_table_layout(text_units: TextUnits, schema: dict[str, Any]) -> tuple[dict[str, Any], dict[int, float]]:
     """从 OCR 表头动态推导列边界，并找出每页的合计截止线。"""
     table_config = schema.get("ocr_table", {})
     config = dict(table_config) if isinstance(table_config, dict) else {}
     text_to_col = _header_text_to_col(schema)
     units = [unit for unit in text_units.units if unit.text.strip()]
+    text_height = _text_height(units)
+    y_bucket = text_height * 5 / 12
+    header_skip = text_height / 3
     headers: dict[int, dict[int, list[tuple[str, float]]]] = defaultdict(lambda: defaultdict(list))
     rows: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
     for unit in units:
-        # OCR 表头各列的基线可相差 1 至 2px，按 5px 合桶才是同一视觉行。
-        y_key = round(_y0(unit) / 5.0) * 5
+        # OCR 表头各列的基线可相差约 1/8 个字高，按字高比例合桶。
+        y_key = round(_y0(unit) / y_bucket) * y_bucket
         rows[unit.page][y_key].append(unit.text)
         column = text_to_col.get(_compact_text(unit.text))
         if column:
@@ -49,7 +58,7 @@ def _ocr_table_layout(text_units: TextUnits, schema: dict[str, Any]) -> tuple[di
     end_y: dict[int, float] = {}
     for page, y in header_y.items():
         for y_key in sorted(rows[page]):
-            if y_key <= y + 4:
+            if y_key <= y + header_skip:
                 continue
             row = _compact_text("".join(rows[page][y_key]))
             if "价税合计" in row or "合计" in row or "备注" in row:
@@ -153,14 +162,16 @@ def _derive_digital_edges(
 
     表头行 = 该页匹配列名最多的 y 桶；数电票各页列 x 一致，合并各页表头得全局列锚点。
     """
-    page_buckets: dict[int, dict[int, list[tuple[str, float]]]] = defaultdict(
+    header_heights = [span["y1"] - span["y0"] for span in spans if span["y1"] > span["y0"]]
+    y_bucket = (median(header_heights) * 5 / 12) if header_heights else 5.0
+    page_buckets: dict[int, dict[float, list[tuple[str, float]]]] = defaultdict(
         lambda: defaultdict(list)
     )
     for span in spans:
         column = text_to_col.get(_compact_text(span["text"]))
         if column:
-            # 同一视觉表头的 PDF span 常有不足 1px 的基线误差，按 5px 合桶。
-            page_buckets[span["page"]][round(span["y0"] / 5.0) * 5].append(
+            # 同一视觉表头的 PDF span 常有约 1/8 个字高的基线误差，按字高比例合桶。
+            page_buckets[span["page"]][round(span["y0"] / y_bucket) * y_bucket].append(
                 (column, (span["x0"] + span["x1"]) / 2)
             )
     col_center: dict[str, float] = {}

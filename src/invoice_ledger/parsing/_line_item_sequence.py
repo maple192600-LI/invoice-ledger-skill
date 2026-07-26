@@ -11,6 +11,7 @@ from ..contracts import FieldCandidate, TextUnits
 from ._helpers import (
     TAX_RATE_RE,
     _add,
+    _append_unique_risk,
     _clean_money,
     _is_money_text,
     _is_number_text,
@@ -389,7 +390,9 @@ def _extract_items_from_text_units(
                 if sequence_error < coordinate_error:
                     return
             except (ArithmeticError, KeyError, ValueError, TypeError, json.JSONDecodeError):
-                pass
+                for candidate in sequence_candidates:
+                    _append_unique_risk(candidate, "item_amount_comparison_failed")
+                return
         fields.pop("items", None)
         for index, item in enumerate(coord_items, start=1):
             item = _normalize_ocr_item(item, schema)

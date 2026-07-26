@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 import re
+from statistics import median
 from typing import Any
 
 from ..contracts import (
@@ -22,6 +23,8 @@ def _extract_money_totals_from_logical_lines(
     # 单页数电票的文本块同样会按列拆散；用视觉逻辑行取合计，不能只留给多页票。
     final_page = max(text_units.page_range) if text_units.source != "ocr" else None
     logical_lines = logical_text_lines(text_units)
+    line_heights = [line.bbox[3] - line.bbox[1] for line in logical_lines if line.bbox and line.bbox[3] > line.bbox[1]]
+    adjacent_line_gap = (median(line_heights) * 1.2) if line_heights else 12.0
     for index, line in enumerate(logical_lines):
         if final_page is not None and line.page != final_page:
             continue
@@ -41,7 +44,7 @@ def _extract_money_totals_from_logical_lines(
                 for following_line in logical_lines[index + 1 :]:
                     if following_line.page != line.page:
                         break
-                    if not following_line.bbox or following_line.bbox[1] - line.bbox[3] > 12:
+                    if not following_line.bbox or following_line.bbox[1] - line.bbox[3] > adjacent_line_gap:
                         break
                     total_values = _money_matches(following_line.text)
                     if total_values:
@@ -79,9 +82,6 @@ def _extract_money_totals(lines: list[str], fields: dict[str, list[FieldCandidat
     for line in lines:
         values_in_yuan_line = _money_matches(line)
         values_in_yuan_line = [value for value in values_in_yuan_line if value is not None]
-        if len(values_in_yuan_line) >= 2 and ("¥" in line or "￥" in line):
-            _add(fields, "amount_total", values_in_yuan_line[0], line, 0.75)
-            _add(fields, "tax_total", values_in_yuan_line[1], line, 0.75)
         total_rule = schema.get("text_labels", {}).get("total_line", {})
         include_all = total_rule.get("include_all", [])
         exclude_any = total_rule.get("exclude_any", [])

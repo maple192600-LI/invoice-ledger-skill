@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from invoice_ledger.contracts import FieldCandidate, TextUnit, TextUnits
 from invoice_ledger.parsing._line_item_sequence import _extract_items_from_text_units
-from invoice_ledger.parsing._line_item_ocr_table import _extract_ocr_table_items
+from invoice_ledger.parsing._line_item_ocr_table import _extract_ocr_table_items, _ocr_table_layout
 from invoice_ledger.parsing._parties import _extract_names_and_tax_ids, _role_party_values_from_columns
 from invoice_ledger.parsing._totals import _extract_money_totals
 from invoice_ledger.schema.schema_loader import load_schema
@@ -41,6 +41,50 @@ class CommonParserRegressionTest(unittest.TestCase):
         self.assertEqual(fields["amount_total"][0].value, "100.00")
         self.assertEqual(fields["tax_total"][0].value, "13.00")
         self.assertEqual(fields["total_with_tax"][0].value, "113.00")
+
+    def test_plain_yuan_detail_line_does_not_become_totals(self) -> None:
+        fields: dict = {}
+        _extract_money_totals(["商品明细 ¥100.00 ¥13.00"], fields, self.schema)
+        self.assertNotIn("amount_total", fields)
+        self.assertNotIn("tax_total", fields)
+
+    def test_total_and_ocr_table_geometry_scale_with_text_height(self) -> None:
+        headers = ["项目名称", "规格型号", "单位", "数量", "单价", "金额", "税率", "税额"]
+        values = ["*服务", "规格", "项", "2", "50", "100.00", "13%", "13.00"]
+        for scale in (0.5, 1, 2, 3):
+            with self.subTest(scale=scale):
+                units = [
+                    TextUnit(
+                        text=text,
+                        page=1,
+                        bbox=[index * 100 * scale, (10 + (index % 2) * 1.5) * scale, (index * 100 + 40) * scale, (22 + (index % 2) * 1.5) * scale],
+                        order=index + 1,
+                        source="ocr",
+                    )
+                    for index, text in enumerate(headers)
+                ]
+                units += [
+                    TextUnit(text=text, page=1, bbox=[index * 100 * scale, 14 * scale, (index * 100 + 40) * scale, 26 * scale], order=index + 20, source="ocr")
+                    for index, text in enumerate(values)
+                ]
+                units += [TextUnit(text="合计", page=1, bbox=[0, 40 * scale, 40 * scale, 52 * scale], order=40, source="ocr")]
+                table_units = TextUnits(invoice_unit_id="scaled-table", source="ocr", units=units)
+                _, end_y = _ocr_table_layout(table_units, self.schema)
+                self.assertEqual(len(_extract_ocr_table_items(table_units, self.schema)), 1)
+                self.assertIn(1, end_y)
+
+                fields: dict = {}
+                total_units = TextUnits(
+                    invoice_unit_id="scaled-total",
+                    source="pdf_text",
+                    page_range=[1],
+                    units=[
+                        TextUnit(text="价税合计（小写）", page=1, bbox=[0, 100 * scale, 100 * scale, 110 * scale], order=1, source="pdf_text"),
+                        TextUnit(text="113.00", page=1, bbox=[0, 118 * scale, 50 * scale, 128 * scale], order=2, source="pdf_text"),
+                    ],
+                )
+                _extract_money_totals([], fields, self.schema, total_units)
+                self.assertEqual(fields["total_with_tax"][0].value, "113.00")
 
     def test_final_page_total_uses_arithmetic_to_select_cumulative_pair(self) -> None:
         fields: dict = {}
@@ -237,6 +281,22 @@ class CommonParserRegressionTest(unittest.TestCase):
             _extract_items_from_text_units(text_units, fields, self.schema)
 
         self.assertEqual(json.loads(fields["items"][1].value)["line_amount"], "20.00")
+
+    def test_text_sequence_keeps_items_and_marks_review_when_comparison_fails(self) -> None:
+        text_units = TextUnits(invoice_unit_id="invalid-sequence", source="pdf_text", units=[unit("*服务", 0, 10, 1)])
+        fields: dict = {"amount_total": [FieldCandidate(value="30.00", source="test", confidence=1, evidence="total")]}
+
+        def add_invalid_sequence(_lines, target, _schema) -> None:
+            target["items"] = [FieldCandidate(value=json.dumps({"line_no": 1, "line_amount": "错误金额"}), source="test", confidence=0.8, evidence="sequence")]
+
+        with (
+            patch("invoice_ledger.parsing._line_item_sequence._extract_items", side_effect=add_invalid_sequence),
+            patch("invoice_ledger.parsing._line_item_sequence._extract_digital_text_table_items", return_value=[{"item_name": "*服务", "line_amount": "30.00"}]),
+        ):
+            _extract_items_from_text_units(text_units, fields, self.schema)
+
+        self.assertEqual(json.loads(fields["items"][0].value)["line_amount"], "错误金额")
+        self.assertIn("item_amount_comparison_failed", fields["items"][0].risk)
 
     def test_star_tax_columns_keep_zero_tax_item(self) -> None:
         text_units = TextUnits(
