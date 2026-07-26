@@ -1,0 +1,66 @@
+<xbrlJson id ="rai_issuer" name="铁路客票电子报销凭证-开具方">
+    <!-- 实例文档节点设置 -->
+    <instanceDoc>
+        <nameSpaceRef>
+            <nameSpace nameSpacePrefix = "xsi" nameSpaceURI = "http://www.w3.org/2001/XMLSchema-instance" />
+            <nameSpace nameSpacePrefix = "rai" nameSpaceURI = "http://xbrl.mof.gov.cn/taxonomy/2023-12-31/rai" />
+            <nameSpace nameSpacePrefix = "link" nameSpaceURI = "http://www.xbrl.org/2003/linkbase" />
+            <nameSpace nameSpacePrefix = "xbrli" nameSpaceURI = "http://www.xbrl.org/2003/instance" />
+            <nameSpace nameSpacePrefix = "iso4217" nameSpaceURI = "http://www.xbrl.org/2003/iso4217" />
+            <nameSpace nameSpacePrefix = "xlink" nameSpaceURI = "http://www.w3.org/1999/xlink" />
+        </nameSpaceRef>
+        <SchemaLocationRef value ="http://xbrl.org/2006/xbrldi http://www.xbrl.org/2006/xbrldi-2006.xsd" />
+        <UnitRef>
+            <unit id ="u1" measure ="iso4217:CNY" numerator ="" denominator =""/>
+        </UnitRef>
+        <SchemaRef schemaRef ="rai_issuer_entry_point_2023-12-31.xsd" />
+        <EntityRef identifier = "${IssuePartyCode}" scheme ="http://xbrl.mof.gov.cn"/>
+        <ContextInstantRef instant = "${DateOfIssue}"/>
+    </instanceDoc>
+    <!-- 对象定义节点 -->
+    <objectDefine>
+    </objectDefine>
+    <!-- json对象映射 -->
+    <jsonObject elementValueType ="string" contextType ="instant" decimals ="2" unitId ="u1" controlData ="">
+        <TypeOfVoucher elementName="TypeOfVoucher" elementNsName="rai" elementValueType="string"/>
+        <ElectronicInvoiceRailwayETicketNumber elementName="ElectronicInvoiceRailwayETicketNumber" elementNsName="rai" elementValueType="string"/>
+        <DateOfIssue elementName="DateOfIssue" elementNsName="rai" elementValueType="date"/>
+        <IssueParty elementName="IssueParty" elementNsName="rai" elementValueType="string"/>
+        <IssuePartyCode elementName="IssuePartyCode" elementNsName="rai" elementValueType="string"/>
+        <TypeOfBusiness elementName="TypeOfBusiness" elementNsName="rai" elementValueType="string"/>
+        <DepartureStation elementName="DepartureStation" elementNsName="rai" elementValueType="string"/>
+        <PhonicsOfDepartureStation elementName="PhonicsOfDepartureStation" elementNsName="rai" elementValueType="string"/>
+        <DestinationStation elementName="DestinationStation" elementNsName="rai" elementValueType="string"/>
+        <PhonicsOfDestinationStation elementName="PhonicsOfDestinationStation" elementNsName="rai" elementValueType="string"/>
+        <TrainNumber elementName="TrainNumber" elementNsName="rai" elementValueType="string"/>
+        <TravelDate elementName="TravelDate" elementNsName="rai" elementValueType="date"/>
+        <DepartureTime elementName="DepartureTime" elementNsName="rai" elementValueType="string"/>
+        <TypeOfRailwayTicket elementName="TypeOfRailwayTicket" elementNsName="rai" elementValueType="string"/>
+        <AirConditioningCharacteristics elementName="AirConditioningCharacteristics" elementNsName="rai" elementValueType="string"/>
+        <SeatLevel elementName="SeatLevel" elementNsName="rai" elementValueType="string"/>
+        <Carriage elementName="Carriage" elementNsName="rai" elementValueType="string"/>
+        <Seat elementName="Seat" elementNsName="rai" elementValueType="string"/>
+        <DiscountMark elementName="DiscountMark" elementNsName="rai" elementValueType="string"/>
+        <Fare elementName="Fare" elementNsName="rai" elementValueType="number"/>
+        <AmountRefunded elementName="AmountRefunded" elementNsName="rai" elementValueType="number"/>
+        <FareOfOriginalRailwayTicket elementName="FareOfOriginalRailwayTicket" elementNsName="rai" elementValueType="number"/>
+        <DepartureStationOfOriginalRailwayTicket elementName="DepartureStationOfOriginalRailwayTicket" elementNsName="rai" elementValueType="string"/>
+        <DestinationStationOfOriginalRailwayTicket elementName="DestinationStationOfOriginalRailwayTicket" elementNsName="rai" elementValueType="string"/>
+        <ETicketNumber elementName="ETicketNumber" elementNsName="rai" elementValueType="string"/>
+        <IdNumber elementName="IdNumber" elementNsName="rai" elementValueType="string"/>
+        <Name elementName="Name" elementNsName="rai" elementValueType="string"/>
+        <TotalAmountExcludingTax elementName="TotalAmountExcludingTax" elementNsName="rai" elementValueType="number"/>
+        <TaxRate elementName="TaxRate" elementNsName="rai" elementValueType="number"/>
+        <TaxAmount elementName="TaxAmount" elementNsName="rai" elementValueType="number"/>
+        <NameOfPurchaser elementName="NameOfPurchaser" elementNsName="rai" elementValueType="string"/>
+        <UnifiedSocialCreditCodeOfPurchaser elementName="UnifiedSocialCreditCodeOfPurchaser" elementNsName="rai" elementValueType="string"/>
+        <AddressPhoneNumberOfPurchaser elementName="AddressPhoneNumberOfPurchaser" elementNsName="rai" elementValueType="string"/>
+        <DepositBankAndAccountNumberOfPurchaser elementName="DepositBankAndAccountNumberOfPurchaser" elementNsName="rai" elementValueType="string"/>
+        <NameOfSeller elementName="NameOfSeller" elementNsName="rai" elementValueType="string"/>
+        <UnifiedSocialCreditCodeOfSeller elementName="UnifiedSocialCreditCodeOfSeller" elementNsName="rai" elementValueType="string"/>
+        <AddressPhoneNumberOfSeller elementName="AddressPhoneNumberOfSeller" elementNsName="rai" elementValueType="string"/>
+        <DepositBankAndAccountNumberOfSeller elementName="DepositBankAndAccountNumberOfSeller" elementNsName="rai" elementValueType="string"/>
+        <NumberOfOriginalInvoice elementName="NumberOfOriginalInvoice" elementNsName="rai" elementValueType="string"/>
+        <Remarks elementName="Remarks" elementNsName="rai" elementValueType="string"/>
+    </jsonObject>
+</xbrlJson>

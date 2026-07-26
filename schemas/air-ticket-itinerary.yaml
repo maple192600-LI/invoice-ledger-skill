@@ -1,0 +1,88 @@
+schema_id: air-ticket-itinerary
+name: 航空运输电子客票行程单
+stage: stage_two_png_ability_pack
+variants:
+  - digital-air-itinerary
+  - legacy-air-itinerary
+
+variant_rules:
+  digital-air-itinerary:
+    keywords:
+      - 民航发展基金
+      - 增值税税额
+      - 电子发票（航空运输电子客票行程单）
+  legacy-air-itinerary:
+    keywords: []
+default_variant: legacy-air-itinerary
+
+match_rules:
+  required_all:
+    - 航空运输电子客票行程单
+  required_any:
+    - 电子客票号码
+    - ITINERARY
+    - AIR TRANSPORT
+    - 机票
+  min_required_any: 0
+
+fields:
+  invoice_code:
+    aliases: []
+    required: false
+  invoice_no:
+    aliases:
+      - 电子客票号码
+    required: true
+  invoice_date:
+    aliases:
+      - 填开日期
+      - DATE OF ISSUED
+    required: true
+  buyer_name:
+    aliases:
+      - 旅客姓名
+    required: true
+  buyer_tax_id:
+    aliases:
+      - 有效身份证件号码
+    required: false
+  seller_name:
+    aliases:
+      - 承运人
+    required: true
+  seller_tax_id:
+    aliases: []
+    required: false
+  invoice_type:
+    aliases:
+      - 航空运输电子客票行程单
+    required: true
+  amount_total:
+    aliases:
+      - 合计
+    required: true
+  tax_total:
+    aliases: []
+    required: true
+  total_with_tax:
+    aliases:
+      - 合计
+    required: true
+
+amount_checks:
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true
+
+layout_rules:
+  passenger_name:
+    min_len: 1
+    max_len: 6
+    max_x: 260
+    max_y: 180
+    exclude_terms:
+      - 旅客

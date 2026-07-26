@@ -1,0 +1,7 @@
+interface:
+  display_name: "Invoice Ledger"
+  short_description: "本地发票 OCR 识别并写入 Excel 台账"
+  brand_color: "#D6A85D"
+  default_prompt: "Use $invoice-ledger-skill to extract local invoice files into a reviewable Excel ledger."
+policy:
+  allow_implicit_invocation: true

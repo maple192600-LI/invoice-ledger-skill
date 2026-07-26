@@ -1,0 +1,76 @@
+schema_id: water-passenger-ticket
+name: 水路旅客运输客票
+stage: stage_two_png_ability_pack
+variants:
+  - water-passenger-ticket
+
+match_rules:
+  required_all: []
+  required_any:
+    - 水路旅客运输客票
+    - 水路客运
+    - 水路旅客
+    - 船票
+    - 乘船日期
+    - 票价
+  min_required_any: 2
+
+fields:
+  invoice_code:
+    aliases:
+      - 发票代码
+    required: false
+  invoice_no:
+    aliases:
+      - 发票号码
+    required: true
+  invoice_date:
+    aliases:
+      - 开票日期
+      - 乘船日期
+    required: true
+  buyer_name:
+    aliases: []
+    required: false
+  buyer_tax_id:
+    aliases: []
+    required: false
+  seller_name:
+    aliases:
+      - 承运人
+      - 收款单位
+      - 开票单位
+    required: true
+  seller_tax_id:
+    aliases:
+      - 统一社会信用代码
+      - 纳税人识别号
+    required: false
+  invoice_type:
+    aliases:
+      - 水路旅客运输客票
+      - 水路客运
+      - 船票
+    required: true
+  amount_total:
+    aliases:
+      - 票价
+      - 金额
+    required: true
+  tax_total:
+    aliases: []
+    required: true
+  total_with_tax:
+    aliases:
+      - 票价
+      - 金额
+    required: true
+
+amount_checks:
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true

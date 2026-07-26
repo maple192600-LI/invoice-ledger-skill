@@ -1,0 +1,48 @@
+<xbrlJson id ="efi" name="财政电子票据">
+    <!-- 实例文档节点设置 -->
+    <instanceDoc>
+        <nameSpaceRef>
+            <nameSpace nameSpacePrefix = "xsi" nameSpaceURI = "http://www.w3.org/2001/XMLSchema-instance" />
+            <nameSpace nameSpacePrefix = "efi" nameSpaceURI = "http://xbrl.mof.gov.cn/taxonomy/2023-12-31/efi" />
+            <nameSpace nameSpacePrefix = "link" nameSpaceURI = "http://www.xbrl.org/2003/linkbase" />
+            <nameSpace nameSpacePrefix = "xbrli" nameSpaceURI = "http://www.xbrl.org/2003/instance" />
+            <nameSpace nameSpacePrefix = "iso4217" nameSpaceURI = "http://www.xbrl.org/2003/iso4217" />
+            <nameSpace nameSpacePrefix = "xlink" nameSpaceURI = "http://www.w3.org/1999/xlink" />
+        </nameSpaceRef>
+        <SchemaLocationRef value ="http://xbrl.org/2006/xbrldi http://www.xbrl.org/2006/xbrldi-2006.xsd" />
+        <UnitRef>
+            <unit id ="u1" measure ="iso4217:CNY" numerator ="" denominator =""/>
+        </UnitRef>
+        <SchemaRef schemaRef ="efi_entry_point_2023-12-31.xsd" />
+        <EntityRef identifier = "${UnifiedSocialCreditCodeOfAccountingEntity}" scheme ="http://xbrl.mof.gov.cn"/>
+        <ContextInstantRef instant = "${InformationOfAccountingDocumentsTuple.PostingDate}"/>
+    </instanceDoc>
+    <!-- 对象定义节点 -->
+    <objectDefine>
+    </objectDefine>
+    <!-- json对象映射 -->
+    <jsonObject elementValueType ="string" contextType ="instant" decimals ="2" unitId ="u1" controlData ="">
+        <EInvoiceID elementName="EInvoiceID" elementNsName="efi" elementValueType="string"/>
+        <InvoicingPartyName elementName="InvoicingPartyName" elementNsName="efi" elementValueType="string"/>
+        <InvoicingPartyCode elementName="InvoicingPartyCode" elementNsName="efi" elementValueType="string"/>
+        <IssueDate elementName="IssueDate" elementNsName="efi" elementValueType="date"/>
+        <TotalAmount elementName="TotalAmount" elementNsName="efi" elementValueType="number"/>
+        <WhetherInvoiceIsRedInvoice elementName="WhetherInvoiceIsRedInvoice" elementNsName="efi" elementValueType="string"/>
+        <WhetherInvoiceHasBeenChecked elementName="WhetherInvoiceHasBeenChecked" elementNsName="efi" elementValueType="string"/>
+        <WhetherInvoiceHasBeenBooked elementName="WhetherInvoiceHasBeenBooked" elementNsName="efi" elementValueType="string"/>
+        <UnifiedSocialCreditCodeOfAccountingEntity elementName="UnifiedSocialCreditCodeOfAccountingEntity" elementNsName="efi" elementValueType="string"/>
+        <NameOfAccountingEntity elementName="NameOfAccountingEntity" elementNsName="efi" elementValueType="string"/>
+        <InformationOfAccountingDocumentsTuple elementName="InformationOfAccountingDocumentsTuple" elementNsName="efi" elementValueType="tuple">
+            <NumberOfAccountingDocuments elementName="NumberOfAccountingDocuments" elementNsName="efi" elementValueType="string"/>
+            <PostingDate elementName="PostingDate" elementNsName="efi" elementValueType="date"/>
+            <AccountingPeriod elementName="AccountingPeriod" elementNsName="efi" elementValueType="string"/>
+            <SummaryOfAccountingDocuments elementName="SummaryOfAccountingDocuments" elementNsName="efi" elementValueType="string"/>
+            <InformationOfDebitAndCreditEntryTuple elementName="InformationOfDebitAndCreditEntryTuple" elementNsName="efi" elementValueType="tuple">
+                <DebitOrCredit elementName="DebitOrCredit" elementNsName="efi" elementValueType="string"/>
+                <NameOfGeneralLedgerSubject elementName="NameOfGeneralLedgerSubject" elementNsName="efi" elementValueType="string"/>
+                <NameOfSubsidiaryLedgerSubject elementName="NameOfSubsidiaryLedgerSubject" elementNsName="efi" elementValueType="string"/>
+                <RecordedAmount elementName="RecordedAmount" elementNsName="efi" elementValueType="number"/>
+            </InformationOfDebitAndCreditEntryTuple>
+        </InformationOfAccountingDocumentsTuple>
+    </jsonObject>
+</xbrlJson>

@@ -1,0 +1,73 @@
+schema_id: taxi-machine-invoice
+name: 出租车机打发票
+stage: stage_two_png_ability_pack
+variants:
+  - taxi-machine-invoice
+
+output_defaults:
+  invoice_type: 出租车机打发票
+
+seller_name_completion:
+  plate_city_prefixes:
+    皖C: 蚌埠市
+
+match_rules:
+  required_all:
+    - 机打发票
+  required_any:
+    - 出租
+    - 车号
+    - 里程
+    - 等候
+  min_required_any: 1
+
+fields:
+  invoice_code:
+    aliases:
+      - 发票代码
+    required: true
+  invoice_no:
+    aliases:
+      - 发票号码
+    required: true
+  invoice_date:
+    aliases:
+      - 日期
+    required: true
+  buyer_name:
+    aliases: []
+    required: false
+  buyer_tax_id:
+    aliases: []
+    required: false
+  seller_name:
+    aliases:
+      - 单位
+    required: true
+  seller_tax_id:
+    aliases: []
+    required: false
+  invoice_type:
+    aliases:
+      - 机打发票
+    required: true
+  amount_total:
+    aliases:
+      - 金额
+    required: true
+  tax_total:
+    aliases: []
+    required: true
+  total_with_tax:
+    aliases:
+      - 金额
+    required: true
+
+amount_checks:
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true
