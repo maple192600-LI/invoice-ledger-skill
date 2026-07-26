@@ -438,6 +438,8 @@ class RunSummary(ContractModel):
     run_id: str
     input_count: int = 0
     invoice_units: int = 0
+    ready_units: int = 0
+    review_required_units: int = 0
     ready_rows: int = 0
     review_required_rows: int = 0
     unmodeled_units: int = 0

@@ -11,10 +11,16 @@ from __future__ import annotations
 import sys
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from shutil import copy2
+from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from invoice_ledger.cli import _user_message  # noqa: E402
+from invoice_ledger.contracts import RunSummary, WriteResult  # noqa: E402
+from invoice_ledger.output.recognition_notices import build_recognition_notices  # noqa: E402
+from invoice_ledger.output.template_writer import write_with_template_profile  # noqa: E402
 from invoice_ledger.pipeline.unit_processor import process_invoice_input  # noqa: E402
 
 # 高德 XML 为桌面只读引用（不在仓库内）；换机请替换为本机对应路径。
@@ -143,6 +149,108 @@ def _check_case(case) -> list[str]:
     return errors
 
 
+def _check_repeat_write(case) -> list[str]:
+    result = process_invoice_input(case["path"], {}, "golden-repeat", "2026-07-23T00:00:00")
+    unit_results = result["unit_results"]
+    rows = [row for unit_result in unit_results for row in unit_result["ledger_rows"]]
+    errors: list[str] = []
+    with TemporaryDirectory() as temp_dir:
+        workbook = Path(temp_dir) / "ledger.xlsx"
+        copy2(ROOT / "templates" / "invoice-information-collection.xlsx", workbook)
+        for run_number in range(1, 4):
+            notices = build_recognition_notices(unit_results, rows)
+            write_result = write_with_template_profile(
+                workbook,
+                ROOT / "config" / "template_profiles" / "current.yaml",
+                rows,
+                f"golden-repeat-{run_number}",
+                recognition_notices=notices,
+            )
+            expected_added = len(rows) if run_number == 1 else 0
+            expected_skipped = 0 if run_number == 1 else len(rows)
+            if write_result.added_rows != expected_added:
+                errors.append(
+                    f"第 {run_number} 次 added_rows: 期望 {expected_added}，实际 {write_result.added_rows}"
+                )
+            if write_result.skipped_duplicate_rows != expected_skipped:
+                errors.append(
+                    f"第 {run_number} 次 skipped_duplicate_rows: "
+                    f"期望 {expected_skipped}，实际 {write_result.skipped_duplicate_rows}"
+                )
+            if write_result.review_required_rows != 0:
+                errors.append(
+                    f"第 {run_number} 次 review_required_rows: 期望 0，实际 {write_result.review_required_rows}"
+                )
+    return errors
+
+
+def _check_user_messages() -> list[str]:
+    errors: list[str] = []
+
+    def check(label: str, summary: RunSummary, expected: list[str], forbidden: list[str]) -> None:
+        message = _user_message(summary, None)
+        for text in expected:
+            if text not in message:
+                errors.append(f"{label}: 缺少文案 {text}")
+        for text in forbidden:
+            if text in message:
+                errors.append(f"{label}: 不应出现文案 {text}")
+
+    check(
+        "正常复核",
+        RunSummary(
+            run_id="message-review",
+            input_count=36,
+            invoice_units=36,
+            ready_units=34,
+            review_required_units=2,
+            ready_rows=75,
+            review_required_rows=37,
+            write_result=WriteResult(
+                run_id="message-review",
+                target_sheet="test",
+                added_rows=112,
+            ),
+            output_dir="",
+        ),
+        ["识别结果：36 张发票、112 条明细", "待复核：2 张发票，共 37 条明细"],
+        ["待复核：37 张发票"],
+    )
+    check(
+        "未建模",
+        RunSummary(
+            run_id="message-unmodeled",
+            input_count=1,
+            invoice_units=1,
+            unmodeled_units=1,
+            write_result=WriteResult(run_id="message-unmodeled", target_sheet="test"),
+            output_dir="",
+        ),
+        ["识别结果：0 张发票、0 条明细", "未形成可写入结果：1 个处理单元"],
+        ["识别结果：1 张发票"],
+    )
+    check(
+        "弱身份重复",
+        RunSummary(
+            run_id="message-weak-duplicate",
+            input_count=1,
+            invoice_units=1,
+            ready_units=1,
+            ready_rows=1,
+            write_result=WriteResult(
+                run_id="message-weak-duplicate",
+                target_sheet="test",
+                added_rows=1,
+                messages=["疑似重复（弱身份票）：本次已写入但需人工确认"],
+            ),
+            output_dir="",
+        ),
+        ["弱身份疑似重复已写入：1 张发票"],
+        ["疑似重复未写入：1 张发票"],
+    )
+    return errors
+
+
 def main() -> int:
     ran = skipped = failed = 0
     failures: dict[str, list[str]] = {}
@@ -168,6 +276,21 @@ def main() -> int:
     if ran == 0:
         print("\n==== GOLDEN TEST: 无样本可测（全部 SKIP）====")
         return 1
+    message_errors = _check_user_messages()
+    if message_errors:
+        print("[FAIL] 用户摘要统计口径")
+        for error in message_errors:
+            print(f"    - {error}")
+        return 1
+    print("[PASS] 用户摘要统计口径")
+    repeat_case = next(case for case in CASES if case["path"].exists())
+    repeat_errors = _check_repeat_write(repeat_case)
+    if repeat_errors:
+        print("[FAIL] 重复写入统计口径")
+        for error in repeat_errors:
+            print(f"    - {error}")
+        return 1
+    print("[PASS] 重复写入统计口径")
     print(f"\n==== GOLDEN TEST PASSED ({ran}/{ran}，skip {skipped}) ====")
     return 0
 

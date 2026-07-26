@@ -255,36 +255,46 @@ def _unit_needs_evidence(unit_result: dict[str, Any]) -> bool:
 
 
 def _user_message(run_summary: RunSummary, output_workbook: str | None) -> str:
-    written = run_summary.ready_rows + run_summary.review_required_rows
+    recognized_units = run_summary.ready_units + run_summary.review_required_units
+    recognized_rows = run_summary.ready_rows + run_summary.review_required_rows
     not_written = run_summary.failed_units + run_summary.unmodeled_units
-    duplicate_messages = [
+    added_rows = run_summary.write_result.added_rows if run_summary.write_result is not None else 0
+    write_messages = run_summary.write_result.messages if run_summary.write_result is not None else []
+    skipped_duplicate_messages = [
         message
-        for message in run_summary.write_result.messages
-        if "疑似重复" in message
-    ] if run_summary.write_result is not None else []
-    lines = [f"本次处理完成：共 {run_summary.invoice_units} 张发票。"]
-    if not_written == 0 and run_summary.review_required_rows == 0 and not duplicate_messages:
-        lines[0] = f"本次处理完成：共 {run_summary.invoice_units} 张发票，已全部写入发票信息采集。"
-        lines.append("未发现需要复核或失败的页面。")
-    elif not_written == 0:
-        lines.extend(
-            [
-                f"已写入：{written} 张。",
-                f"待复核：{run_summary.review_required_rows} 张。",
-                "待复核原因已写入 Excel 的“识别提示”页。",
-            ]
+        for message in write_messages
+        if "疑似重复" in message and "本次未写入" in message
+    ]
+    weak_duplicate_messages = [
+        message
+        for message in write_messages
+        if "疑似重复（弱身份票）" in message and "本次已写入" in message
+    ]
+    lines = [
+        f"本次处理完成：共处理 {run_summary.input_count} 个文件。",
+        f"识别结果：{recognized_units} 张发票、{recognized_rows} 条明细；"
+        f"本次新增写入 {added_rows} 条明细。",
+    ]
+    if run_summary.review_required_units:
+        lines.append(
+            f"待复核：{run_summary.review_required_units} 张发票，共 {run_summary.review_required_rows} 条明细。"
         )
-    else:
-        lines.extend(
-            [
-                f"已写入：{written} 张。",
-                f"待复核：{run_summary.review_required_rows} 张。",
-                f"未写入：{not_written} 张。",
-                "未写入和待复核原因已写入 Excel 的“识别提示”页。",
-            ]
-        )
-    if duplicate_messages:
-        lines.append(f"疑似重复未写入：{len(duplicate_messages)} 张。")
+        lines.append("待复核原因已写入 Excel 的“识别提示”页。")
+    if not_written:
+        lines.append(f"未形成可写入结果：{not_written} 个处理单元。")
+        lines.append("未写入原因已写入 Excel 的“识别提示”页。")
+    if (
+        not not_written
+        and not run_summary.review_required_units
+        and not skipped_duplicate_messages
+        and not weak_duplicate_messages
+    ):
+        lines.append("本批识别结果全部通过，无需复核。")
+    if skipped_duplicate_messages:
+        lines.append(f"疑似重复未写入：{len(skipped_duplicate_messages)} 张发票。")
+    if weak_duplicate_messages:
+        lines.append(f"弱身份疑似重复已写入：{len(weak_duplicate_messages)} 张发票，请人工确认。")
+    if skipped_duplicate_messages or weak_duplicate_messages:
         lines.append("疑似重复详情已写入 Excel 的“识别提示”页。")
     if output_workbook:
         lines.append(f"目标 Excel：{output_workbook}")
@@ -390,10 +400,22 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     review_required_rows = sum(
         1 for row in ledger_rows if row.recognition_status == RecognitionStatus.REVIEW_REQUIRED
     )
+    review_unit_ids = {
+        row.invoice_unit_id
+        for row in ledger_rows
+        if row.recognition_status == RecognitionStatus.REVIEW_REQUIRED
+    }
+    ready_unit_ids = {
+        row.invoice_unit_id
+        for row in ledger_rows
+        if row.recognition_status == RecognitionStatus.READY and row.invoice_unit_id not in review_unit_ids
+    }
     run_summary = RunSummary(
         run_id=run_id,
         input_count=len(input_paths),
         invoice_units=len(unit_results),
+        ready_units=len(ready_unit_ids),
+        review_required_units=len(review_unit_ids),
         ready_rows=ready_rows,
         review_required_rows=review_required_rows,
         unmodeled_units=sum(
@@ -479,6 +501,9 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         "input": args.input or args.input_dir,
         "input_count": len(input_paths),
         "invoice_units": run_summary.invoice_units,
+        "recognized_invoices": run_summary.ready_units + run_summary.review_required_units,
+        "ready_units": run_summary.ready_units,
+        "review_required_units": run_summary.review_required_units,
         "ready_rows": run_summary.ready_rows,
         "review_required_rows": run_summary.review_required_rows,
         "unmodeled_units": run_summary.unmodeled_units,

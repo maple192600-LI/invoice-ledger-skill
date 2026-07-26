@@ -448,11 +448,10 @@ def write_with_template_profile(
                             f"疑似重复（弱身份票）：文件 {notice.source_file}，发票号码 {invoice_no}，"
                             f"{duplicate_position}本次已写入但需人工确认；请查看 Excel 的“识别提示”页。"
                         )
+                result.skipped_duplicate_rows = skipped
                 result.added_rows = written
-                result.skipped_duplicate_rows += skipped
             elif mode == "invoice_summary":
                 written, skipped, _, _ = _append_rows(ws, fields, _summary_rows(ledger_rows))
-                result.skipped_duplicate_rows += skipped
             elif mode == "review_issues":
                 if recognition_notices is None:
                     issues = _issue_rows(ledger_rows)
@@ -460,8 +459,9 @@ def write_with_template_profile(
                     result.review_required_rows = len(issues)
                 else:
                     written, skipped = _append_notice_rows(ws, fields, recognition_notices)
-                    result.review_required_rows = len(recognition_notices)
-                result.skipped_duplicate_rows += skipped
+                    result.review_required_rows = sum(
+                        notice.issue_type == "需复核" for notice in recognition_notices
+                    )
             result.actions.append(
                 {
                     "action": WriteAction.ADDED.value,
