@@ -365,10 +365,12 @@ def _extract_digital_text_table_items(
                 total_y = float(y_key)
                 break
         if total_y is not None:
+            heights = [span["y1"] - span["y0"] for span in page_spans if span["y1"] > span["y0"]]
+            adjacent_gap = median(heights) * 1.5 if heights else 15.0
             preceding_money = [
                 span["y0"]
                 for span in page_spans
-                if total_y - 15.0 <= span["y0"] <= total_y
+                if total_y - adjacent_gap <= span["y0"] <= total_y
                 and _is_money_text(span["text"])
             ]
             if preceding_money:

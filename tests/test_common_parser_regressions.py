@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from invoice_ledger.contracts import FieldCandidate, TextUnit, TextUnits
 from invoice_ledger.parsing._line_item_sequence import _extract_items_from_text_units
-from invoice_ledger.parsing._line_item_ocr_table import _derive_digital_edges, _extract_ocr_table_items, _ocr_table_layout
+from invoice_ledger.parsing._line_item_ocr_table import _derive_digital_edges, _extract_digital_text_table_items, _extract_ocr_table_items, _ocr_table_layout
 from invoice_ledger.parsing._parties import _extract_names_and_tax_ids, _role_party_values_from_columns
 from invoice_ledger.parsing._totals import _extract_money_totals
 from invoice_ledger.schema.schema_loader import load_schema
@@ -136,6 +136,53 @@ class CommonParserRegressionTest(unittest.TestCase):
         self.assertIn("line_amount", edges)
         self.assertIn("tax_rate", edges)
         self.assertLess(header_boundary[1], 155.3)
+
+    def test_pdf_total_boundary_scales_without_overwriting_last_item(self) -> None:
+        headers = ["项目名称", "规格型号", "单位", "数量", "单价", "金额", "税率/征收率", "税额"]
+        values = ["*服务*测试项目", "A1", "项", "1", "30.00", "30.00", "13%", "3.90"]
+        for scale in (0.5, 1, 2, 3):
+            with self.subTest(scale=scale):
+                spans = [
+                    {
+                        "text": text,
+                        "x0": index * 100 * scale,
+                        "x1": (index * 100 + 40) * scale,
+                        "y0": 100 * scale,
+                        "y1": 110 * scale,
+                        "page": 1,
+                        "order": index + 1,
+                    }
+                    for index, text in enumerate(headers)
+                ]
+                spans += [
+                    {
+                        "text": text,
+                        "x0": index * 100 * scale,
+                        "x1": (index * 100 + 40) * scale,
+                        "y0": 130 * scale,
+                        "y1": 140 * scale,
+                        "page": 1,
+                        "order": index + 20,
+                    }
+                    for index, text in enumerate(values)
+                ]
+                spans += [
+                    {"text": "100.00", "x0": 500 * scale, "x1": 550 * scale, "y0": 190 * scale, "y1": 200 * scale, "page": 1, "order": 40},
+                    {"text": "13.00", "x0": 700 * scale, "x1": 750 * scale, "y0": 190 * scale, "y1": 200 * scale, "page": 1, "order": 41},
+                    {"text": "合计", "x0": 0, "x1": 40 * scale, "y0": 200 * scale, "y1": 210 * scale, "page": 1, "order": 42},
+                ]
+                text_units = TextUnits(
+                    invoice_unit_id="pdf-total-scale",
+                    source="pdf_text",
+                    source_file="dummy.pdf",
+                    page_range=[1],
+                    units=[],
+                )
+                with patch("invoice_ledger.parsing._line_item_ocr_table._read_pdf_spans", return_value=spans):
+                    items = _extract_digital_text_table_items(text_units, self.schema)
+
+                self.assertEqual(items[0]["line_amount"], "30.00")
+                self.assertEqual(items[0]["line_tax_amount"], "3.90")
 
     def test_final_page_total_uses_arithmetic_to_select_cumulative_pair(self) -> None:
         fields: dict = {}
