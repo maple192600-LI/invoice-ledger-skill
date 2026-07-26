@@ -251,7 +251,7 @@ def _company_name_in_units(units: list[TextUnit]) -> str | None:
     for text in chinese_units:
         if any(suffix in text for suffix in preferred_suffixes):
             return text
-    return chinese_units[0] if chinese_units else None
+    return None
 
 
 def _tax_id_in_units(units: list[TextUnit]) -> str | None:

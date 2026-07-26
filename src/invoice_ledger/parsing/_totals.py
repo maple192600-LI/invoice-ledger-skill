@@ -54,15 +54,15 @@ def _extract_money_totals_from_logical_lines(
                         if preceding_line.page == line.page:
                             nearby_values.extend(_money_matches(preceding_line.text))
                     expected = Decimal(total_values[-1])
-                    for left_index, left in enumerate(nearby_values):
-                        for right in nearby_values[left_index + 1 :]:
-                            if abs(Decimal(left) + Decimal(right) - expected) <= Decimal("0.02"):
-                                evidence = f"final total arithmetic: {left} + {right} = {total_values[-1]}"
-                                if not fields.get("amount_total"):
-                                    _add(fields, "amount_total", left, evidence, confidence)
-                                if not fields.get("tax_total"):
-                                    _add(fields, "tax_total", right, evidence, confidence)
-                                return
+                    if len(nearby_values) >= 2:
+                        left, right = nearby_values[-2:]
+                        if abs(Decimal(left) + Decimal(right) - expected) <= Decimal("0.02"):
+                            evidence = f"final total arithmetic: {left} + {right} = {total_values[-1]}"
+                            if not fields.get("amount_total"):
+                                _add(fields, "amount_total", left, evidence, confidence)
+                            if not fields.get("tax_total"):
+                                _add(fields, "tax_total", right, evidence, confidence)
+                            return
 
 
 def _extract_money_totals(lines: list[str], fields: dict[str, list[FieldCandidate]], schema: dict[str, Any], text_units: TextUnits | None = None) -> None:

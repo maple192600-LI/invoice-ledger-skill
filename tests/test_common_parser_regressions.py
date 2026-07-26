@@ -60,6 +60,23 @@ class CommonParserRegressionTest(unittest.TestCase):
         self.assertEqual(fields["tax_total"][0].value, "223450.39")
         self.assertEqual(fields["total_with_tax"][0].value, "1942299.58")
 
+    def test_final_page_total_ignores_earlier_equal_sum_pair(self) -> None:
+        fields: dict = {}
+        text_units = TextUnits(
+            invoice_unit_id="adjacent-total",
+            source="pdf_text",
+            page_range=[1],
+            units=[
+                TextUnit(text="无关金额 ¥40.00 ¥60.00", page=1, bbox=[10, 100, 300, 110], order=1, source="pdf_text"),
+                TextUnit(text="计 ¥90.00", page=1, bbox=[10, 115, 300, 125], order=2, source="pdf_text"),
+                TextUnit(text="合 计 ¥10.00", page=1, bbox=[10, 130, 300, 140], order=3, source="pdf_text"),
+                TextUnit(text="价税合计（小写） ¥100.00", page=1, bbox=[10, 150, 400, 160], order=4, source="pdf_text"),
+            ],
+        )
+        _extract_money_totals([], fields, self.schema, text_units)
+        self.assertEqual(fields["amount_total"][0].value, "90.00")
+        self.assertEqual(fields["tax_total"][0].value, "10.00")
+
     def test_party_column_geometry_binds_buyer_and_seller(self) -> None:
         text_units = TextUnits(
             invoice_unit_id="party",
@@ -111,6 +128,18 @@ class CommonParserRegressionTest(unittest.TestCase):
                 TextUnit(text="销售方信息", page=1, bbox=[504, 154, 521, 238], order=2, source="ocr"),
                 TextUnit(text="规格型号", page=1, bbox=[197, 248, 264, 269], order=3, source="ocr"),
                 TextUnit(text="*信息技术服务*平台维护", page=1, bbox=[58, 280, 300, 295], order=4, source="ocr"),
+            ],
+        )
+        self.assertNotIn("buyer_name", _role_party_values_from_columns(text_units))
+
+    def test_party_columns_do_not_invent_name_when_item_header_is_missing(self) -> None:
+        text_units = TextUnits(
+            invoice_unit_id="missing-item-header",
+            source="ocr",
+            units=[
+                TextUnit(text="购买方信息", page=1, bbox=[28, 154, 46, 238], order=1, source="ocr"),
+                TextUnit(text="销售方信息", page=1, bbox=[504, 154, 521, 238], order=2, source="ocr"),
+                TextUnit(text="*信息技术服务*平台维护", page=1, bbox=[58, 280, 300, 295], order=3, source="ocr"),
             ],
         )
         self.assertNotIn("buyer_name", _role_party_values_from_columns(text_units))
