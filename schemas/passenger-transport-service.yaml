@@ -9,16 +9,33 @@ match_rules:
 
 fields:
   traveler_name:
-    required: false
+    required: true
   traveler_id:
-    required: false
+    required: true
   travel_date:
-    required: false
+    required: true
   departure_place:
-    required: false
+    required: true
   arrival_place:
-    required: false
+    required: true
   travel_class:
-    required: false
+    required: true
   transport_type:
-    required: false
+    required: true
+
+line_table:
+  header_aliases:
+    traveler_name:
+      - 出行人
+    traveler_id:
+      - 有效身份证件号
+    travel_date:
+      - 出行日期
+    departure_place:
+      - 出发地
+    arrival_place:
+      - 到达地
+    travel_class:
+      - 等级
+    transport_type:
+      - 交通工具类型

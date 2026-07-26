@@ -8,6 +8,10 @@ match_rules:
     - 不动产经营租赁服务
 
 fields:
+  property_certificate_no:
+    required: true
+  area_unit:
+    required: true
   real_estate_address:
     required: true
   lease_start_date:
@@ -16,3 +20,32 @@ fields:
     required: true
   cross_city_flag:
     required: true
+
+line_table:
+  header_aliases:
+    property_certificate_no:
+      - 产权证书/不动产权证号
+      - 不动产权证号
+    area_unit:
+      - 面积单位
+
+item_context_patterns:
+  # 单页 PDF 文本层按列拆成连续行时，仍从明细项目后的两列值保留产权证号和面积单位。
+  property_certificate_no:
+    patterns:
+      - "\\*[^*\\n]+\\*[^\\n]*\\n\\s*([^\\s;；]+)"
+  area_unit:
+    patterns:
+      - "\\*[^*\\n]+\\*[^\\n]*\\n\\s*[^\\s;；]+\\n\\s*([^\\s;；]+)"
+  real_estate_address:
+    patterns:
+      - "不动产地址\\s*[:：]\\s*([^;；\\n]+)"
+  lease_start_date:
+    patterns:
+      - "租赁期起止\\s*[:：]\\s*(\\d{4}-\\d{1,2}-\\d{1,2})"
+  lease_end_date:
+    patterns:
+      - "租赁期起止\\s*[:：]\\s*\\d{4}-\\d{1,2}-\\d{1,2}.*?(\\d{4}-\\d{1,2}-\\d{1,2})"
+  cross_city_flag:
+    patterns:
+      - "跨地（市）标志\\s*[:：]\\s*([^;；\\s]+)"
