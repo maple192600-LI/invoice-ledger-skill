@@ -42,6 +42,24 @@ class CommonParserRegressionTest(unittest.TestCase):
         self.assertEqual(fields["tax_total"][0].value, "13.00")
         self.assertEqual(fields["total_with_tax"][0].value, "113.00")
 
+    def test_final_page_total_uses_arithmetic_to_select_cumulative_pair(self) -> None:
+        fields: dict = {}
+        text_units = TextUnits(
+            invoice_unit_id="multi-page-total",
+            source="pdf_text",
+            page_range=[1, 2],
+            units=[
+                TextUnit(text="小 ¥98496.30 ¥12804.50", page=2, bbox=[10, 100, 300, 110], order=1, source="pdf_text"),
+                TextUnit(text="计 ¥1718849.19", page=2, bbox=[10, 115, 300, 125], order=2, source="pdf_text"),
+                TextUnit(text="合 计 ¥223450.39", page=2, bbox=[10, 130, 300, 140], order=3, source="pdf_text"),
+                TextUnit(text="价税合计（小写） ¥1942299.58", page=2, bbox=[10, 150, 400, 160], order=4, source="pdf_text"),
+            ],
+        )
+        _extract_money_totals([], fields, self.schema, text_units)
+        self.assertEqual(fields["amount_total"][0].value, "1718849.19")
+        self.assertEqual(fields["tax_total"][0].value, "223450.39")
+        self.assertEqual(fields["total_with_tax"][0].value, "1942299.58")
+
     def test_party_column_geometry_binds_buyer_and_seller(self) -> None:
         text_units = TextUnits(
             invoice_unit_id="party",
@@ -175,6 +193,20 @@ class CommonParserRegressionTest(unittest.TestCase):
             _extract_items_from_text_units(text_units, fields, self.schema)
 
         self.assertEqual(json.loads(fields["items"][1].value)["line_amount"], "20.00")
+
+    def test_star_tax_columns_keep_zero_tax_item(self) -> None:
+        text_units = TextUnits(
+            invoice_unit_id="star-tax",
+            source="pdf_text",
+            units=[
+                TextUnit(text=text, page=1, order=index, source="pdf_text")
+                for index, text in enumerate(("*电信服务*通信服务费", "项", "1", "100", "100.00", "*", "*"), 1)
+            ],
+        )
+        fields: dict = {}
+        _extract_items_from_text_units(text_units, fields, self.schema)
+        item = json.loads(fields["items"][0].value)
+        self.assertEqual((item["line_amount"], item["tax_rate"], item["line_tax_amount"]), ("100.00", "*", "0.00"))
 
 
 if __name__ == "__main__":

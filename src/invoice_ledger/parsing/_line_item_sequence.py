@@ -239,6 +239,32 @@ def _extract_sequence_item(
             next_index,
         )
 
+    if (
+        index + 4 < len(lines)
+        and _is_number_text(lines[index])
+        and _is_number_text(lines[index + 1])
+        and _is_money_text(lines[index + 2])
+        and lines[index + 3 : index + 5] == ["*", "*"]
+    ):
+        quantity = lines[index]
+        unit_price = lines[index + 1]
+        amount = _clean_money(lines[index + 2])
+        building_parts, next_index = _building_sequence_parts(lines, index + 5, name_parts)
+        return (
+            {
+                **building_parts,
+                "spec_model": spec,
+                "unit": unit,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "line_amount": amount,
+                "tax_rate": "*",
+                "line_tax_amount": "0.00",
+                "line_total_with_tax": amount,
+            },
+            next_index,
+        )
+
     if index + 2 < len(lines) and _is_number_text(lines[index]) and _is_number_text(lines[index + 1]):
         quantity = lines[index]
         unit_price = lines[index + 1]
