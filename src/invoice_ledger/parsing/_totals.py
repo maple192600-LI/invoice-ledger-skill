@@ -18,9 +18,12 @@ def _extract_money_totals_from_logical_lines(
     text_units: TextUnits,
     fields: dict[str, list[FieldCandidate]],
 ) -> None:
-    if text_units.source != "ocr":
+    if text_units.source != "ocr" and len(text_units.page_range) < 2:
         return
+    final_page = max(text_units.page_range) if text_units.source != "ocr" else None
     for line in logical_text_lines(text_units):
+        if final_page is not None and line.page != final_page:
+            continue
         text = line.text.strip()
         compact = _compact_text(text)
         values = _money_matches(text)

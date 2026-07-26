@@ -35,6 +35,18 @@ _RED_INVOICE_SIGNALS = ("红字发票", "（负数）", "(负数)", "被红冲",
 _RE_ORIGINAL_NO = re.compile(r"被红冲蓝字发票号码[：:]\s*([0-9A-Z]+)")
 _RE_ORIGINAL_CODE = re.compile(r"被红冲蓝字发票代码[：:]\s*([0-9A-Z]+)")
 _RE_CONFIRM_NO = re.compile(r"红字发票信息确认单编号[：:]\s*([0-9A-Z]+)")
+_SPECIAL_INVOICE_TYPES = {"建筑服务", "成品油"}
+
+
+def _extract_special_invoice_type(
+    lines: list[str],
+    fields: dict[str, list[FieldCandidate]],
+) -> None:
+    for line in lines:
+        value = line.strip()
+        if value in _SPECIAL_INVOICE_TYPES:
+            _add(fields, "special_invoice_type", value, line, 0.98)
+            return
 
 
 def _extract_red_invoice_signals(lines: list[str], fields: dict[str, list[FieldCandidate]]) -> None:
@@ -74,6 +86,7 @@ def _extract_schema_specific_candidates(
         "tax-payment-certificate": scheme_extractors.tax_payment.extract,
         "road-bus-ticket": scheme_extractors.road_bus.extract,
         "railway-ticket": scheme_extractors.railway.extract,
+        "motor-vehicle-unified": scheme_extractors.motor_vehicle.extract,
         "water-passenger-ticket": scheme_extractors.water_passenger.extract,
         "taxi-machine-invoice": scheme_extractors.taxi.extract,
         "metro-quota-invoice": scheme_extractors.metro_quota.extract,
@@ -180,6 +193,7 @@ def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -
             _add(fields, field_name, value, f"party geometry {field_name}", 0.84, ["weak_geometry"])
     shared_fallback_fields = _shared_fallback_fields(schema)
     _extract_invoice_type(lines, fields, schema)
+    _extract_special_invoice_type(lines, fields)
     if not fields.get("invoice_no"):
         _extract_invoice_number(lines, fields, schema)
     invoice_no_candidate = fields.get("invoice_no", [None])[0]

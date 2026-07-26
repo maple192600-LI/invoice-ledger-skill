@@ -1,0 +1,59 @@
+schema_id: motor-vehicle-unified
+name: 数电机动车销售统一发票
+variants:
+  - digital-motor-vehicle-unified
+
+match_rules:
+  required_all:
+    - 电子发票
+    - 机动车销售统一发票
+  required_any:
+    - 车辆识别代号
+    - 发票号码
+    - 价税合计
+  min_required_any: 1
+
+fields:
+  invoice_code:
+    aliases: []
+    required: false
+  invoice_no:
+    aliases: [发票号码]
+    required: true
+  invoice_date:
+    aliases: [开票日期]
+    required: true
+  buyer_name:
+    aliases: [购买方名称]
+    required: true
+  buyer_tax_id:
+    aliases: [统一社会信用代码, 纳税人识别号]
+    required: true
+  seller_name:
+    aliases: [销货单位名称]
+    required: true
+  seller_tax_id:
+    aliases: [纳税人识别号]
+    required: true
+  invoice_type:
+    aliases: [电子发票（机动车销售统一发票）]
+    required: true
+  amount_total:
+    aliases: [不含税价]
+    required: true
+  tax_total:
+    aliases: [增值税税额]
+    required: true
+  total_with_tax:
+    aliases: [价税合计]
+    required: true
+
+amount_checks:
+  - amount_completeness_check
+  - amount_total_plus_tax_total_equals_total_with_tax
+  - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - sum_line_amount_equals_amount_total
+  - sum_line_tax_amount_equals_tax_total
+
+line_table:
+  required: true

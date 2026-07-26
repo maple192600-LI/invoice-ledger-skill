@@ -157,12 +157,16 @@ def _freight_context(item: InvoiceItem) -> str:
 
 def _item_context_remark(item: InvoiceItem) -> str:
     parts: list[str] = []
+    if item.context_remark:
+        parts.append(item.context_remark.strip())
+    if item.service_location:
+        parts.append(f"建筑服务发生地：{item.service_location}")
     if item.project_name:
-        parts.append(f"项目名称：{item.project_name}")
+        parts.append(f"建筑项目名称：{item.project_name}")
     freight = _freight_context(item)
     if freight:
         parts.append(freight)
-    return "；".join(parts)
+    return "；".join(dict.fromkeys(part for part in parts if part))
 
 
 def _is_positive_invoice(invoice: InvoiceFields) -> str:

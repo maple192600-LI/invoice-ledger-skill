@@ -1,4 +1,9 @@
 schemas:
+  - schema_id: motor-vehicle-unified
+    name: 数电机动车销售统一发票
+    path: schemas/motor-vehicle-unified.yaml
+    status: active
+    stage: stage_two_vehicle
   - schema_id: medical-fiscal-receipt
     name: 医疗收费票据
     path: schemas/medical-fiscal-receipt.yaml

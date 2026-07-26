@@ -342,6 +342,15 @@ def _extract_items_from_text_units(
                 value = json.dumps(item, ensure_ascii=False, sort_keys=True)
                 _add(fields, "items", value, f"ocr table line item {index}", 0.86)
             return
+    if text_units.source != "ocr" and len(text_units.page_range) > 1:
+        coord_items = _extract_digital_text_table_items(text_units, schema)
+        if coord_items:
+            for index, item in enumerate(coord_items, start=1):
+                item = _normalize_ocr_item(item, schema)
+                item["line_no"] = index
+                value = json.dumps(item, ensure_ascii=False, sort_keys=True)
+                _add(fields, "items", value, f"digital table line item {index}", 0.86)
+            return
     _extract_items(_lines(text_units), fields, schema)
     if text_units.source != "ocr" and not fields.get("items"):
         # 文本层数电票序列解析失败(0 items)：用坐标表格解析救回列顺序错乱的票

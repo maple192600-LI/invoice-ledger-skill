@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from invoice_ledger.cli import _user_message  # noqa: E402
 from invoice_ledger.contracts import RunSummary, WriteResult  # noqa: E402
 from invoice_ledger.output.recognition_notices import build_recognition_notices  # noqa: E402
+from invoice_ledger.output.ledger_rows import build_ledger_rows  # noqa: E402
 from invoice_ledger.output.template_writer import write_with_template_profile  # noqa: E402
 from invoice_ledger.pipeline.unit_processor import process_invoice_input  # noqa: E402
 
@@ -91,6 +92,122 @@ CASES = [
         },
     },
     {
+        "label": "建筑服务(西双版纳)",
+        "path": ROOT / "数电发票" / "增值税专用发票-建筑服务.pdf",
+        "expect": {
+            "invoice_no": "23532000000004844777",
+            "special_invoice_type": "建筑服务",
+            "amount_total": "5582.52", "tax_total": "167.48", "total_with_tax": "5750.00",
+            "row_context_contains": ["建筑服务发生地：", "建筑项目名称："],
+            "items": [
+                {"line_amount": "5582.52", "tax_rate": "3%", "line_tax_amount": "167.48",
+                 "line_total_with_tax": "5750.00", "service_location": "云南省西双版纳傣族自治州景洪市",
+                 "project_name": "景洪市大渡岗田园综合体（茶园道路） 建设项目"},
+            ],
+        },
+    },
+    {
+        "label": "建筑服务(山西磐鼎)",
+        "path": ROOT / "数电发票" / "dzfp_26142000000978765226_山西磐鼎建筑工程有限公司_20260713184558.pdf",
+        "expect": {
+            "invoice_no": "26142000000978765226",
+            "special_invoice_type": "建筑服务",
+            "amount_total": "103276.13", "tax_total": "3098.28", "total_with_tax": "106374.41",
+            "row_context_contains": [
+                "建筑服务发生地：山西省临汾市蒲县",
+                "建筑项目名称：蒲县养护维修工程项目",
+            ],
+            "items": [
+                {"line_amount": "103276.13", "tax_rate": "3%", "line_tax_amount": "3098.28",
+                 "line_total_with_tax": "106374.41", "service_location": "山西省临汾市蒲县",
+                 "project_name": "蒲县养护维修工程项目"},
+            ],
+        },
+    },
+    {
+        "label": "成品油(含折扣)",
+        "path": ROOT / "数电发票" / "增值税普通发票-成品油发票-有现金折扣.pdf",
+        "expect": {
+            "invoice_no": "26147000000209852922",
+            "special_invoice_type": "成品油",
+            "amount_total": "257.53", "tax_total": "33.47", "total_with_tax": "291.00",
+            "items": [
+                {"line_amount": "265.49", "tax_rate": "13%", "line_tax_amount": "34.51",
+                 "line_total_with_tax": "300.00", "unit": "升", "quantity": "35.72"},
+                {"line_amount": "-7.96", "tax_rate": "13%", "line_tax_amount": "-1.04",
+                 "line_total_with_tax": "-9.00"},
+            ],
+        },
+    },
+    {
+        "label": "成品油(无折扣)",
+        "path": ROOT / "数电发票" / "增值税普通发票-成品油发票-没有现金折扣.pdf",
+        "expect": {
+            "invoice_no": "26147000000225867341",
+            "special_invoice_type": "成品油",
+            "amount_total": "176.99", "tax_total": "23.01", "total_with_tax": "200.00",
+            "items": [
+                {"line_amount": "176.99", "tax_rate": "13%", "line_tax_amount": "23.01",
+                 "line_total_with_tax": "200.00", "unit": "升", "quantity": "22.63"},
+            ],
+        },
+    },
+    {
+        "label": "成品油(舟山保源)",
+        "path": ROOT / "数电发票" / "dzfp_26332000003455897176_舟山保源能源有限公司_20260713190411.pdf",
+        "expect": {
+            "invoice_no": "26332000003455897176",
+            "special_invoice_type": "成品油",
+            "amount_total": "218987.61", "tax_total": "28468.39", "total_with_tax": "247456.00",
+            "items": [
+                {"line_amount": "218987.61", "tax_rate": "13%", "line_tax_amount": "28468.39",
+                 "line_total_with_tax": "247456.00", "unit": "吨", "quantity": "33.44"},
+            ],
+        },
+    },
+    {
+        "label": "成品油(中国石油)",
+        "path": ROOT / "数电发票" / "dzfp_26537000000295846219_中国石油天然气股份有限公司云南西双版纳销售分公司_20260713184913.pdf",
+        "expect": {
+            "invoice_no": "26537000000295846219",
+            "special_invoice_type": "成品油",
+            "amount_total": "211104.42", "tax_total": "27443.58", "total_with_tax": "238548.00",
+            "items": [
+                {"line_amount": "211104.42", "tax_rate": "13%", "line_tax_amount": "27443.58",
+                 "line_total_with_tax": "238548.00", "unit": "吨", "quantity": "30",
+                 "spec_model": "GB19147"},
+            ],
+        },
+    },
+    {
+        "label": "跨页数电票(喜跃发)",
+        "path": ROOT / "数电发票" / "dzfp_26142000001030443346_喜跃发国际环保新材料股份有限公司_20260713184312.pdf",
+        "expect": {
+            "invoice_no": "26142000001030443346",
+            "amount_total": "1718849.19", "tax_total": "223450.39", "total_with_tax": "1942299.58",
+            "item_count": 47,
+            "items": [
+                {"line_amount": "1637.17", "line_tax_amount": "212.83",
+                 "quantity": "0.74", "unit_price": "2212.3893805309735"},
+            ],
+        },
+    },
+    {
+        "label": "机动车销售统一发票(山东东岳)",
+        "path": ROOT / "数电发票" / "dzfp_25372000000360862004_山东东岳专用汽车制造有限公司_20260713191424.pdf",
+        "expect": {
+            "schema_id": "motor-vehicle-unified",
+            "invoice_no": "25372000000360862004",
+            "amount_total": "527433.63", "tax_total": "68566.37", "total_with_tax": "596000.00",
+            "items": [
+                {"item_name": "稀浆封层车", "spec_model": "圣岳牌SDZ5317TFCF30",
+                 "line_amount": "527433.63", "tax_rate": "13%", "line_tax_amount": "68566.37",
+                 "line_total_with_tax": "596000.00",
+                 "context_contains": ["合格证号", "发动机号码", "车辆识别代号/车架号码"]},
+            ],
+        },
+    },
+    {
         "label": "高德XML(总局EInvoice)",
         "path": GAODE_XML,
         "expect": {
@@ -124,6 +241,15 @@ def _check_case(case) -> list[str]:
     inv = record.invoice
     expect = case["expect"]
     errors: list[str] = []
+    if record.quality.status.value != "ready":
+        errors.append(f"status: 期望 ready，实际 {record.quality.status.value}")
+    if expect.get("schema_id") and record.schema_id != expect["schema_id"]:
+        errors.append(f"schema_id: 期望 {expect['schema_id']}，实际 {record.schema_id}")
+    if expect.get("special_invoice_type") != inv.special_invoice_type:
+        errors.append(
+            f"special_invoice_type: 期望 {expect.get('special_invoice_type')}，"
+            f"实际 {inv.special_invoice_type}"
+        )
     if not _eq(inv.invoice_no, expect["invoice_no"]):
         errors.append(f"invoice_no: 期望 {expect['invoice_no']}，实际 {inv.invoice_no}")
     for field in ("amount_total", "tax_total", "total_with_tax"):
@@ -131,8 +257,9 @@ def _check_case(case) -> list[str]:
         actual = getattr(inv, field)
         if not _eq(actual, want):
             errors.append(f"{field}: 期望 {want}，实际 {actual}")
-    if len(record.items) != len(expect["items"]):
-        errors.append(f"明细行数: 期望 {len(expect['items'])}，实际 {len(record.items)}")
+    expected_item_count = expect.get("item_count", len(expect["items"]))
+    if len(record.items) != expected_item_count:
+        errors.append(f"明细行数: 期望 {expected_item_count}，实际 {len(record.items)}")
     for idx, item_expect in enumerate(expect["items"]):
         if idx >= len(record.items):
             break
@@ -142,10 +269,20 @@ def _check_case(case) -> list[str]:
             if key == "name_contains":
                 if want not in (item.item_name or ""):
                     errors.append(f"{prefix} 名称未含 {want}：{item.item_name}")
+            elif key == "context_contains":
+                for text in want:
+                    if text not in (item.context_remark or ""):
+                        errors.append(f"{prefix} 备注未含 {text}：{item.context_remark}")
             else:
                 actual = getattr(item, key)
                 if not _eq(actual, want):
                     errors.append(f"{prefix} {key}: 期望 {want}，实际 {actual}")
+    if expect.get("row_context_contains"):
+        rows = build_ledger_rows(record, "golden", "2026-07-26T00:00:00")
+        context = rows[0].context_remark if rows else ""
+        for text in expect["row_context_contains"]:
+            if text not in context:
+                errors.append(f"台账备注未含 {text}：{context}")
     return errors
 
 

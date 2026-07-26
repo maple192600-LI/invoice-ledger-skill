@@ -239,6 +239,7 @@ class InvoiceFields(ContractModel):
     seller_name: str | None = None
     seller_tax_id: str | None = None
     invoice_type: str | None = None
+    special_invoice_type: str | None = None
     is_red_invoice: str | None = None
     red_original_no: str | None = None
     red_original_code: str | None = None
@@ -265,6 +266,7 @@ class InvoiceFields(ContractModel):
 class InvoiceItem(ContractModel):
     line_no: int
     item_name: str | None = None
+    context_remark: str | None = None
     service_location: str | None = None
     project_name: str | None = None
     # 货物运输服务 5 列子表：运输工具种类/运输工具牌号/起运地/到达地/运输货物名称

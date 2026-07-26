@@ -132,6 +132,7 @@ def _is_blocked_building_project_fragment(text: str) -> bool:
         "收款人",
         "复核",
         "备注",
+        "土地增值税",
         "购买方",
         "销售方",
         "纳税人识别号",

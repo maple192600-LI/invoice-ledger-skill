@@ -11,6 +11,7 @@ from ._helper_fields import _required_float
 from ._helper_primitives import (
     TAX_RATE_RE,
     _bbox,
+    _center_x,
     _center_y,
     _clean_money,
     _decimal_scale,
@@ -142,7 +143,8 @@ def _ocr_table_item(
         text = unit.text.strip()
         if not text or _is_total_marker(text):
             continue
-        column_name = _ocr_column_for_x(_x0(unit), table_config)
+        x_position = _center_x(unit) if table_config.get("use_center_x") else _x0(unit)
+        column_name = _ocr_column_for_x(x_position, table_config)
         if column_name == "item_name":
             if text.startswith("*") or not (_is_number_text(text) or _is_money_text(text)):
                 name_parts.append(text)

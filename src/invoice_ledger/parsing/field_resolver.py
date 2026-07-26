@@ -102,6 +102,7 @@ def _resolve_items(candidates: FieldCandidates, decisions: dict[str, dict[str, o
             InvoiceItem(
                 line_no=int(payload.get("line_no") or len(items) + 1),
                 item_name=payload.get("item_name"),
+                context_remark=payload.get("context_remark"),
                 service_location=payload.get("service_location"),
                 project_name=payload.get("project_name"),
                 transport_vehicle_type=payload.get("transport_vehicle_type"),
@@ -152,6 +153,11 @@ def resolve_invoice_record(
         seller_name=_best("seller_name", candidates.fields.get("seller_name"), field_decisions),
         seller_tax_id=_best("seller_tax_id", candidates.fields.get("seller_tax_id"), field_decisions),
         invoice_type=_best("invoice_type", candidates.fields.get("invoice_type"), field_decisions),
+        special_invoice_type=_best(
+            "special_invoice_type",
+            candidates.fields.get("special_invoice_type"),
+            field_decisions,
+        ),
         is_red_invoice=_best("is_red_invoice", candidates.fields.get("is_red_invoice"), field_decisions),
         red_original_no=_best("red_original_no", candidates.fields.get("red_original_no"), field_decisions),
         red_original_code=_best("red_original_code", candidates.fields.get("red_original_code"), field_decisions),

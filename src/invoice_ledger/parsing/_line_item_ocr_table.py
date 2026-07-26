@@ -8,7 +8,7 @@ from typing import Any
 import fitz
 
 from ..contracts import TextUnit, TextUnits
-from ._helpers import _compact_text, _ocr_table_item, _x0, _y0
+from ._helpers import _center_x, _compact_text, _is_money_text, _ocr_table_item, _x0, _y0
 from ._line_item_sequence_helpers import _textual_spec_tokens
 
 
@@ -236,7 +236,11 @@ def _extract_digital_text_table_items(
     if not derived:
         return []
     edges, header_y_by_page = derived
-    table_config = {"column_right_edges": edges, "last_column": "line_tax_amount"}
+    table_config = {
+        "column_right_edges": edges,
+        "last_column": "line_tax_amount",
+        "use_center_x": True,
+    }
     item_name_edge = edges.get("item_name", float("inf"))
 
     by_page: dict[int, list[dict[str, Any]]] = defaultdict(list)
@@ -255,9 +259,18 @@ def _extract_digital_text_table_items(
         total_y: float | None = None
         for y_key in sorted(y_row):
             row_compact = _compact_text("".join(y_row[y_key]))
-            if "合计" in row_compact or "价税合计" in row_compact:
+            if "小计" in row_compact or "合计" in row_compact or "价税合计" in row_compact:
                 total_y = float(y_key)
                 break
+        if total_y is not None:
+            preceding_money = [
+                span["y0"]
+                for span in page_spans
+                if total_y - 15.0 <= span["y0"] <= total_y
+                and _is_money_text(span["text"])
+            ]
+            if preceding_money:
+                total_y = min(total_y, *preceding_money)
         for span in page_spans:
             if span["y0"] <= header_y + 4:
                 continue
@@ -279,7 +292,7 @@ def _extract_digital_text_table_items(
     item_starts = [
         index
         for index, unit in enumerate(detail_units)
-        if unit.text.startswith("*") and _x0(unit) <= item_name_edge
+        if unit.text.startswith("*") and _center_x(unit) <= item_name_edge
     ]
     textual_spec_tokens = _textual_spec_tokens(schema)
     items: list[dict[str, Any]] = []
