@@ -4,6 +4,7 @@ import json
 import unittest
 
 from invoice_ledger.contracts import TextUnit, TextUnits
+from invoice_ledger.parsing._line_item_ocr_table import _extract_freight_subtable
 from invoice_ledger.parsing.field_candidates import generate_field_candidates
 from invoice_ledger.schema.schema_loader import load_schema
 from invoice_ledger.schema.schema_router import decide_schema
@@ -22,6 +23,22 @@ def text_units(text: str) -> TextUnits:
 
 
 class FreightTollModelsTest(unittest.TestCase):
+    def test_freight_subtable_scales_with_page_coordinates(self) -> None:
+        headers = ("运输工具种类", "运输工具牌号", "起运地", "到达地", "运输货物名称")
+        values = ("公路运输", "晋ADC0693", "阳曲", "景洪", "摊铺机")
+        schema = load_schema("freight-transport-service")
+        for scale in (1, 2, 3):
+            spans = []
+            for index, (header, value) in enumerate(zip(headers, values)):
+                x0 = (index * 100 + 10) * scale
+                spans.append({"text": header, "x0": x0, "x1": x0 + 60 * scale, "y0": 100 * scale, "y1": 110 * scale})
+                spans.append({"text": value, "x0": x0, "x1": x0 + 60 * scale, "y0": 130 * scale, "y1": 140 * scale})
+            spans.append({"text": "价税合计", "x0": 10, "x1": 80, "y0": 180 * scale, "y1": 190 * scale})
+            with self.subTest(scale=scale):
+                rows = _extract_freight_subtable(spans, schema)
+                self.assertEqual(len(rows), 1)
+                self.assertEqual(set(rows[0].values()), set(values))
+
     def test_freight_keeps_five_required_fields_and_excludes_sf_collection(self) -> None:
         schema = load_schema("freight-transport-service")
         self.assertTrue(all(schema["fields"][field]["required"] for field in (
@@ -65,7 +82,7 @@ class FreightTollModelsTest(unittest.TestCase):
             },
         )
         self.assertEqual(
-            decide_schema(text_units("电子发票 发票号码 开票日期 价税合计 不动产经营租赁服务 停车费")).schema_id,
+            decide_schema(text_units("电子发票 发票号码 开票日期 价税合计\n不动产经营租赁服务\n停车费")).schema_id,
             "real-estate-operating-lease",
         )
 

@@ -51,7 +51,7 @@ class SchemaInheritanceAndRoutingTest(unittest.TestCase):
         for text, expected in cases.items():
             with self.subTest(text=text):
                 self.assertEqual(
-                    decide_schema(text_units(invoice_signals + text)).schema_id,
+                    decide_schema(text_units(invoice_signals + "\n" + text)).schema_id,
                     expected,
                 )
 
@@ -60,6 +60,9 @@ class SchemaInheritanceAndRoutingTest(unittest.TestCase):
             "电子发票 发票号码 开票日期 价税合计 物流辅助服务 收派服务",
             "电子发票 发票号码 开票日期 价税合计 机票代订",
             "电子发票 发票号码 开票日期 价税合计 机械租赁",
+            "电子发票 发票号码 开票日期 价税合计 *信息技术服务*旅客运输服务平台软件维护",
+            "电子发票 发票号码 开票日期 价税合计 *咨询服务*成品油行业咨询",
+            "电子发票 发票号码 开票日期 价税合计 *租赁服务*建筑服务设备出租",
         )
         for text in cases:
             with self.subTest(text=text):

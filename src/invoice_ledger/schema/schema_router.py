@@ -25,13 +25,18 @@ def _schema_match_score(text: str, schema: dict[str, Any]) -> int:
     if required_all and not all(term in text for term in required_all):
         return 0
 
+    exact_lines = {line.strip() for line in text.splitlines() if line.strip()}
+    required_exact_lines = [str(term) for term in rules.get("required_exact_lines", [])]
+    if required_exact_lines and not all(term in exact_lines for term in required_exact_lines):
+        return 0
+
     required_any = [str(term) for term in rules.get("required_any", [])]
     any_score = sum(1 for term in required_any if term and term in text)
     min_required_any = int(rules.get("min_required_any", 1 if required_any else 0))
     if any_score < min_required_any:
         return 0
 
-    return len(required_all) + any_score
+    return len(required_all) + len(required_exact_lines) + any_score
 
 
 def _variant_id(schema: dict[str, Any], text: str) -> str | None:

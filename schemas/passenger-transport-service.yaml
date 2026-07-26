@@ -4,7 +4,7 @@ extends: standard-invoice
 special_invoice_type_value: 旅客运输服务
 
 match_rules:
-  required_all:
+  required_exact_lines:
     - 旅客运输服务
 
 fields:

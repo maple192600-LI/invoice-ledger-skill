@@ -7,7 +7,7 @@ from unittest.mock import patch
 from invoice_ledger.contracts import FieldCandidate, TextUnit, TextUnits
 from invoice_ledger.parsing._line_item_sequence import _extract_items_from_text_units
 from invoice_ledger.parsing._line_item_ocr_table import _extract_ocr_table_items
-from invoice_ledger.parsing._parties import _extract_names_and_tax_ids
+from invoice_ledger.parsing._parties import _extract_names_and_tax_ids, _role_party_values_from_columns
 from invoice_ledger.parsing._totals import _extract_money_totals
 from invoice_ledger.schema.schema_loader import load_schema
 
@@ -84,6 +84,19 @@ class CommonParserRegressionTest(unittest.TestCase):
         self.assertEqual(buyer.value, "大连嘉世精密机械制造有限公司")
         self.assertEqual(seller.value, "上海优定电子科技有限公司")
 
+    def test_party_columns_do_not_read_names_below_item_header(self) -> None:
+        text_units = TextUnits(
+            invoice_unit_id="missing-party",
+            source="ocr",
+            units=[
+                TextUnit(text="购买方信息", page=1, bbox=[28, 154, 46, 238], order=1, source="ocr"),
+                TextUnit(text="销售方信息", page=1, bbox=[504, 154, 521, 238], order=2, source="ocr"),
+                TextUnit(text="规格型号", page=1, bbox=[197, 248, 264, 269], order=3, source="ocr"),
+                TextUnit(text="*信息技术服务*平台维护", page=1, bbox=[58, 280, 300, 295], order=4, source="ocr"),
+            ],
+        )
+        self.assertNotIn("buyer_name", _role_party_values_from_columns(text_units))
+
     def test_ocr_table_uses_header_columns_and_stops_at_total(self) -> None:
         headers = ["项目名称", "规格型号", "单位", "数量", "单价", "金额", "税率", "税额"]
         values = ["*服务", "规格", "项", "2", "50", "100.00", "13%", "13.00"]
@@ -125,6 +138,43 @@ class CommonParserRegressionTest(unittest.TestCase):
             _extract_items_from_text_units(text_units, fields, self.schema)
 
         self.assertEqual(len(fields["items"]), 2)
+
+    def test_text_sequence_wins_when_equal_count_matches_invoice_total(self) -> None:
+        text_units = TextUnits(
+            invoice_unit_id="cumulative-total",
+            source="pdf_text",
+            units=[unit("*服务", 0, 10, 1)],
+        )
+        fields: dict = {
+            "amount_total": [
+                FieldCandidate(value="30.00", source="test", confidence=1, evidence="total")
+            ]
+        }
+
+        def add_sequence(_lines, target, _schema) -> None:
+            for line_no, amount in ((1, "10.00"), (2, "20.00")):
+                target.setdefault("items", []).append(
+                    FieldCandidate(
+                        value=json.dumps({"line_no": line_no, "line_amount": amount}),
+                        source="test",
+                        confidence=0.8,
+                        evidence="sequence",
+                    )
+                )
+
+        with (
+            patch("invoice_ledger.parsing._line_item_sequence._extract_items", side_effect=add_sequence),
+            patch(
+                "invoice_ledger.parsing._line_item_sequence._extract_digital_text_table_items",
+                return_value=[
+                    {"item_name": "*服务一", "line_amount": "10.00"},
+                    {"item_name": "*服务二", "line_amount": "30.00"},
+                ],
+            ),
+        ):
+            _extract_items_from_text_units(text_units, fields, self.schema)
+
+        self.assertEqual(json.loads(fields["items"][1].value)["line_amount"], "20.00")
 
 
 if __name__ == "__main__":

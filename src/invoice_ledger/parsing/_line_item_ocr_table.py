@@ -183,7 +183,6 @@ def _derive_digital_edges(
 
 
 _FREIGHT_TRIGGER_FALLBACK = ("运输工具种类", "起运地", "到达地")
-_FREIGHT_DATA_BAND_HEIGHT = 80.0
 _FREIGHT_INTERFERENCE_KEYWORDS = ("价税合计", "备注", "开户", "下载次数", "开票人", "收款人", "复核")
 
 
@@ -229,19 +228,31 @@ def _extract_freight_subtable(
     if len(col_centers) < len(triggers):
         return []
     anchors = sorted(col_centers.items(), key=lambda item: item[1])
+    header_spans = [
+        span
+        for span in spans
+        if round(span["y0"]) == header_y and _compact_text(span["text"]) in text_to_col
+    ]
+    header_bottom = max(span["y1"] for span in header_spans)
+    header_height = max(span["y1"] - span["y0"] for span in header_spans)
 
-    # 数据区下界 = min(首个干扰词 y, 表头 y + 带宽)，避免吸入价税合计/备注区
-    interference_y = next(
-        (s["y0"] for s in spans if any(k in s["text"] for k in _FREIGHT_INTERFERENCE_KEYWORDS)),
-        float("inf"),
+    # 数据区下界由下一结构锚点决定，避免页面缩放后固定像素带截断数据。
+    interference_y = min(
+        (
+            s["y0"]
+            for s in spans
+            if s["y0"] > header_y
+            and any(k in s["text"] for k in _FREIGHT_INTERFERENCE_KEYWORDS)
+        ),
+        default=max((s["y1"] for s in spans), default=float(header_y)) + 1,
     )
-    lower_bound = min(interference_y, header_y + _FREIGHT_DATA_BAND_HEIGHT)
+    lower_bound = interference_y - header_height
     gaps = [anchors[i + 1][1] - anchors[i][1] for i in range(len(anchors) - 1)]
     tol = (min(gaps) / 2) if gaps else 45.0
 
     rows: dict[int, dict[str, str]] = defaultdict(dict)
     for span in spans:
-        if span["y0"] <= header_y + 4 or span["y0"] >= lower_bound:
+        if span["y0"] <= header_bottom or span["y0"] >= lower_bound:
             continue
         cx = (span["x0"] + span["x1"]) / 2
         nearest_col, nearest_cx = min(anchors, key=lambda item: abs(item[1] - cx))
@@ -251,7 +262,7 @@ def _extract_freight_subtable(
     ordered: list[dict[str, str]] = []
     for y_key in sorted(rows):
         row = rows[y_key]
-        if any(row.values()):
+        if len(row) >= len(triggers):
             ordered.append(row)
     return ordered
 

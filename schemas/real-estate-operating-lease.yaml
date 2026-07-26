@@ -4,7 +4,7 @@ extends: standard-invoice
 special_invoice_type_value: 不动产经营租赁服务
 
 match_rules:
-  required_all:
+  required_exact_lines:
     - 不动产经营租赁服务
 
 fields:

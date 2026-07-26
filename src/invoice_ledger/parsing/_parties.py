@@ -84,12 +84,22 @@ def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, s
         "buyer": min(float(unit.bbox[1]) for unit in buyer_headers if unit.bbox),
         "seller": min(float(unit.bbox[1]) for unit in seller_headers if unit.bbox),
     }
+    detail_headers = {"项目名称", "货物或应税劳务服务名称", "规格型号", "单位", "数量", "单价", "金额", "税率征收率", "税额"}
+    detail_top = min(
+        (
+            _center_y(unit)
+            for unit in units
+            if re.sub(r"[\s/、，,:：]+", "", unit.text) in detail_headers
+            and _center_y(unit) > min(header_top.values())
+        ),
+        default=float("inf"),
+    )
     result: dict[str, str] = {}
     for role, anchor_x in (("buyer", buyer_x), ("seller", seller_x)):
         role_units = [
             unit
             for unit in units
-            if _center_y(unit) >= header_top[role] - 5
+            if header_top[role] - 5 <= _center_y(unit) < detail_top
             and abs(_center_x(unit) - anchor_x) <= abs(_center_x(unit) - (seller_x if role == "buyer" else buyer_x))
         ]
         company = _company_name_in_units(role_units)
@@ -104,7 +114,7 @@ def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, s
             if not _is_tax_id_value(value):
                 continue
             role = "buyer" if abs(_center_x(unit) - buyer_x) <= abs(_center_x(unit) - seller_x) else "seller"
-            if _center_y(unit) >= header_top[role] - 5 and f"{role}_tax_id" not in result:
+            if header_top[role] - 5 <= _center_y(unit) < detail_top and f"{role}_tax_id" not in result:
                 result[f"{role}_tax_id"] = value
             break
     return result

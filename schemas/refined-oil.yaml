@@ -4,9 +4,15 @@ extends: standard-invoice
 special_invoice_type_value: 成品油
 
 match_rules:
-  required_all:
+  required_exact_lines:
     - 成品油
 
 fields:
   special_invoice_type:
+    required: true
+  item_name:
+    required: true
+  unit:
+    required: true
+  quantity:
     required: true

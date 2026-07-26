@@ -30,7 +30,7 @@ class BuildingOilModelsTest(unittest.TestCase):
         }
         for text, expected in cases.items():
             with self.subTest(text=text):
-                self.assertEqual(decide_schema(text_units(signals + text)).schema_id, expected)
+                self.assertEqual(decide_schema(text_units(signals + "\n" + text)).schema_id, expected)
 
     def test_special_models_keep_shared_headers_and_checks(self) -> None:
         expected_headers = {
@@ -45,7 +45,7 @@ class BuildingOilModelsTest(unittest.TestCase):
         }
         for schema_id, required_fields in {
             "building-service": {"special_invoice_type", "service_location", "project_name"},
-            "refined-oil": {"special_invoice_type"},
+            "refined-oil": {"special_invoice_type", "item_name", "unit", "quantity"},
         }.items():
             with self.subTest(schema_id=schema_id):
                 schema = load_schema(schema_id)

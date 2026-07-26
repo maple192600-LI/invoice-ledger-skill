@@ -344,10 +344,26 @@ def _extract_items_from_text_units(
             return
     _extract_items(_lines(text_units), fields, schema)
     if text_units.source != "ocr":
-        sequence_count = len(fields.get("items", []))
+        sequence_candidates = fields.get("items", [])
+        sequence_count = len(sequence_candidates)
         coord_items = _extract_digital_text_table_items(text_units, schema)
         if not coord_items or len(coord_items) < sequence_count:
             return
+        totals = fields.get("amount_total", [])
+        if totals and len(coord_items) == sequence_count:
+            try:
+                expected = Decimal(totals[0].value)
+                sequence_error = abs(
+                    sum(Decimal(str(json.loads(candidate.value)["line_amount"])) for candidate in sequence_candidates)
+                    - expected
+                )
+                coordinate_error = abs(
+                    sum(Decimal(str(item["line_amount"])) for item in coord_items) - expected
+                )
+                if sequence_error < coordinate_error:
+                    return
+            except (ArithmeticError, KeyError, ValueError, TypeError, json.JSONDecodeError):
+                pass
         fields.pop("items", None)
         for index, item in enumerate(coord_items, start=1):
             item = _normalize_ocr_item(item, schema)
