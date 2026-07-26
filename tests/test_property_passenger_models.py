@@ -71,6 +71,7 @@ class PropertyPassengerModelsTest(unittest.TestCase):
 租赁期起止:2025-04-08 00:00 2025-04-09 23:59; 跨地（市）标志:否;"""))
         item = property_record.items[0]
         self.assertEqual(property_record.schema_id, "real-estate-operating-lease")
+        self.assertNotIn("missing evidence", property_record.quality.remark)
         self.assertEqual(item.property_certificate_no, "无")
         self.assertEqual(item.area_unit, "㎡")
         self.assertEqual(item.real_estate_address, "山西省太原市小店区南中环街426号")

@@ -157,6 +157,8 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
         if not _has_value(value):
             continue
         decision = decisions.get(field_name)
+        if decision is None and field_name in InvoiceItem.model_fields:
+            decision = decisions.get("items")
         if not decision:
             if require_missing_evidence:
                 issues.append(f"missing evidence {field_name}")
