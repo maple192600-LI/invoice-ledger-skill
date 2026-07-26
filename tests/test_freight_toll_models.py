@@ -39,15 +39,11 @@ class FreightTollModelsTest(unittest.TestCase):
     def test_toll_context_populates_first_item_and_parking_stays_real_estate(self) -> None:
         text = "\n".join((
             "电子发票 发票号码 12345678 开票日期 2026-07-26 价税合计",
-            "通行费 某某站入 某某站出",
-            "征税类型：征税",
-            "车牌号：晋A12345",
-            "入口：昌平站",
-            "出口：清河站",
-            "通行时间：2026-07-26 08:30:00",
+            "通行费",
+            "晋A12345 昌平站入 清河站出 2026-07-26 08:30:00",
             "*通行费",
             "服务",
-            "不征税",
+            "3%",
             "次",
             "10.00",
             "0.00",
