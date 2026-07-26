@@ -108,7 +108,9 @@ def main() -> int:
     )
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.report:
-        Path(args.report).write_text(payload + "\n", encoding="utf-8")
+        report_path = Path(args.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(payload + "\n", encoding="utf-8")
     print(payload)
     return 0 if report["status"] == "passed" else 1
 
