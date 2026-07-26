@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import unittest
 
-from invoice_ledger.contracts import TextUnit, TextUnits
+from invoice_ledger.contracts import (
+    InvoiceFields,
+    InvoiceQuality,
+    InvoiceRecord,
+    InvoiceSource,
+    RecognitionStatus,
+    TextUnit,
+    TextUnits,
+)
 from invoice_ledger.schema.schema_loader import load_schema
 from invoice_ledger.schema.schema_router import decide_schema
+from invoice_ledger.validation.record_validator import validate_invoice_record
 
 
 def text_units(text: str) -> TextUnits:
@@ -55,6 +64,22 @@ class SchemaInheritanceAndRoutingTest(unittest.TestCase):
         for text in cases:
             with self.subTest(text=text):
                 self.assertEqual(decide_schema(text_units(text)).schema_id, "standard-invoice")
+
+    def test_extension_keeps_digital_invoice_number_validation(self) -> None:
+        record = InvoiceRecord(
+            invoice_unit_id="test",
+            schema_id="building-service",
+            variant_id="digital-invoice-form",
+            source=InvoiceSource(source_file="test.pdf", page_range=[1]),
+            invoice=InvoiceFields(invoice_no="123", total_with_tax="1.00"),
+            items=[],
+            quality=InvoiceQuality(
+                status=RecognitionStatus.REVIEW_REQUIRED,
+                confidence=1,
+            ),
+        )
+        validated = validate_invoice_record(record)
+        self.assertIn("digital invoice number invalid", validated.quality.remark)
 
 
 if __name__ == "__main__":

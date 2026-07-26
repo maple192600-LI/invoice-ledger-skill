@@ -175,9 +175,13 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
     return issues
 
 
-def _variant_identity_issues(record: InvoiceRecord) -> list[str]:
+def _variant_identity_issues(record: InvoiceRecord, schema: dict[str, Any]) -> list[str]:
+    is_standard_family = (
+        schema.get("schema_id") == "standard-invoice"
+        or schema.get("extends") == "standard-invoice"
+    )
     if (
-        record.schema_id == "standard-invoice"
+        is_standard_family
         and record.variant_id == "digital-invoice-form"
         and not has_standard_digital_invoice_number(
             record.schema_id,
@@ -213,7 +217,7 @@ def validate_invoice_record(record: InvoiceRecord, schema: dict[str, Any] | None
             issues.append(f"missing {field_name}")
     if record.quality.data_source != "structured":
         issues.extend(_field_decision_issues(record, required_fields, _requires_field_evidence(active_schema)))
-    issues.extend(_variant_identity_issues(record))
+    issues.extend(_variant_identity_issues(record, active_schema))
 
     line_table = active_schema.get("line_table", {})
     if isinstance(line_table, dict) and line_table.get("required") is True and not record.items:
