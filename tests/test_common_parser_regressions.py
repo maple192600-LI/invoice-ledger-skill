@@ -70,7 +70,8 @@ class CommonParserRegressionTest(unittest.TestCase):
                 TextUnit(text="无关金额 ¥40.00 ¥60.00", page=1, bbox=[10, 100, 300, 110], order=1, source="pdf_text"),
                 TextUnit(text="计 ¥90.00", page=1, bbox=[10, 115, 300, 125], order=2, source="pdf_text"),
                 TextUnit(text="合 计 ¥10.00", page=1, bbox=[10, 130, 300, 140], order=3, source="pdf_text"),
-                TextUnit(text="价税合计（小写） ¥100.00", page=1, bbox=[10, 150, 400, 160], order=4, source="pdf_text"),
+                TextUnit(text="无关金额 ¥40.00 ¥60.00", page=1, bbox=[10, 145, 300, 155], order=4, source="pdf_text"),
+                TextUnit(text="价税合计（小写） ¥100.00", page=1, bbox=[10, 165, 400, 175], order=5, source="pdf_text"),
             ],
         )
         _extract_money_totals([], fields, self.schema, text_units)
@@ -143,6 +144,20 @@ class CommonParserRegressionTest(unittest.TestCase):
             ],
         )
         self.assertNotIn("buyer_name", _role_party_values_from_columns(text_units))
+
+    def test_party_columns_stop_names_at_tax_id_without_item_header(self) -> None:
+        text_units = TextUnits(
+            invoice_unit_id="company-after-tax-id",
+            source="ocr",
+            units=[
+                TextUnit(text="购买方信息", page=1, bbox=[28, 154, 46, 238], order=1, source="ocr"),
+                TextUnit(text="销售方信息", page=1, bbox=[504, 154, 521, 238], order=2, source="ocr"),
+                TextUnit(text="92140110MA0KFPPE9P", page=1, bbox=[58, 205, 250, 220], order=3, source="ocr"),
+                TextUnit(text="91140122778108880D", page=1, bbox=[533, 205, 730, 220], order=4, source="ocr"),
+                TextUnit(text="某某供应商有限公司", page=1, bbox=[533, 280, 730, 295], order=5, source="ocr"),
+            ],
+        )
+        self.assertNotIn("seller_name", _role_party_values_from_columns(text_units))
 
     def test_ocr_table_uses_header_columns_and_stops_at_total(self) -> None:
         headers = ["项目名称", "规格型号", "单位", "数量", "单价", "金额", "税率", "税额"]

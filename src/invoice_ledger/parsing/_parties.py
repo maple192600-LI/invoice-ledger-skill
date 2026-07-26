@@ -95,16 +95,7 @@ def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, s
         default=float("inf"),
     )
     result: dict[str, str] = {}
-    for role, anchor_x in (("buyer", buyer_x), ("seller", seller_x)):
-        role_units = [
-            unit
-            for unit in units
-            if header_top[role] - 5 <= _center_y(unit) < detail_top
-            and abs(_center_x(unit) - anchor_x) <= abs(_center_x(unit) - (seller_x if role == "buyer" else buyer_x))
-        ]
-        company = _company_name_in_units(role_units)
-        if company:
-            result[f"{role}_name"] = company
+    tax_id_y: dict[str, float] = {}
     for unit in sorted(units, key=lambda item: (_center_y(item), item.order)):
         text = unit.text.strip()
         if any(term in text for term in TAX_ID_EXCLUDED_CONTEXT_TERMS):
@@ -116,7 +107,19 @@ def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, s
             role = "buyer" if abs(_center_x(unit) - buyer_x) <= abs(_center_x(unit) - seller_x) else "seller"
             if header_top[role] - 5 <= _center_y(unit) < detail_top and f"{role}_tax_id" not in result:
                 result[f"{role}_tax_id"] = value
+                tax_id_y[role] = _center_y(unit)
             break
+    for role, anchor_x in (("buyer", buyer_x), ("seller", seller_x)):
+        role_bottom = detail_top if detail_top != float("inf") else tax_id_y.get(role, header_top[role] - 5)
+        role_units = [
+            unit
+            for unit in units
+            if header_top[role] - 5 <= _center_y(unit) <= role_bottom
+            and abs(_center_x(unit) - anchor_x) <= abs(_center_x(unit) - (seller_x if role == "buyer" else buyer_x))
+        ]
+        company = _company_name_in_units(role_units)
+        if company:
+            result[f"{role}_name"] = company
     return result
 
 

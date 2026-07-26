@@ -51,7 +51,11 @@ def _extract_money_totals_from_logical_lines(
                 if not fields.get("amount_total") or not fields.get("tax_total"):
                     nearby_values: list[str] = []
                     for preceding_line in logical_lines[max(0, index - 4) : index]:
-                        if preceding_line.page == line.page:
+                        preceding_compact = _compact_text(preceding_line.text)
+                        if (
+                            preceding_line.page == line.page
+                            and (preceding_compact.startswith("计") or "合计" in preceding_compact)
+                        ):
                             nearby_values.extend(_money_matches(preceding_line.text))
                     expected = Decimal(total_values[-1])
                     if len(nearby_values) >= 2:
