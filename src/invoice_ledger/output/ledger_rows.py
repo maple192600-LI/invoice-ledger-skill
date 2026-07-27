@@ -167,13 +167,6 @@ def _item_context_remark(item: InvoiceItem) -> str:
     if freight:
         parts.append(freight)
     labels = (
-        ("出行人", item.traveler_name),
-        ("有效身份证件号", item.traveler_id),
-        ("出行日期", item.travel_date),
-        ("出发地", item.departure_place),
-        ("到达地", item.arrival_place),
-        ("等级", item.travel_class),
-        ("交通工具类型", item.transport_type),
         ("通行费类型", item.toll_variant),
         ("车牌号", item.vehicle_plate_no),
         ("入口", item.toll_entrance),

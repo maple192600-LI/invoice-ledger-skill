@@ -107,17 +107,23 @@ class PropertyPassengerModelsTest(unittest.TestCase):
         self.assertNotIn("不动产地址", ledger_row.remark)
         self.assertEqual(decide_schema(text_units("电子发票 发票号码 开票日期 价税合计 *动产租赁*水车租赁")).schema_id, "standard-invoice")
 
-    def test_gaode_headers_without_values_stay_empty_and_require_review(self) -> None:
+    def test_gaode_headers_without_values_are_optional(self) -> None:
         record = record_for(text_units("""电子发票（普通发票）
 旅客运输服务
 发票号码：25427000000134934316
 开票日期：2025年04月16日
+购买方名称：北京测试有限公司
+购买方纳税人识别号：91110101MA00000001
+销售方名称：杭州测试有限公司
+销售方纳税人识别号：91330101MA00000002
 *运输服务*客运服务费
 12.5
 1
 12.50
 3%
 0.38
+合计 ¥12.50 ¥0.38
+价税合计（小写）¥12.88
 出行人
 有效身份证件号
 出行日期
@@ -126,10 +132,20 @@ class PropertyPassengerModelsTest(unittest.TestCase):
 等级
 交通工具类型"""))
         self.assertEqual(record.schema_id, "passenger-transport-service")
-        self.assertEqual(record.quality.status, RecognitionStatus.REVIEW_REQUIRED)
-        self.assertIn("missing traveler_name", record.quality.remark)
+        self.assertEqual(record.quality.status, RecognitionStatus.READY)
+        self.assertNotIn("missing traveler_name", record.quality.remark)
         self.assertIsNone(record.items[0].traveler_name)
         self.assertIsNone(record.items[0].transport_type)
+        item = record.items[0]
+        item.traveler_name = "张三"
+        item.traveler_id = "测试证件号"
+        item.travel_date = "2025-04-16"
+        item.departure_place = "出发地"
+        item.arrival_place = "到达地"
+        item.travel_class = "普通"
+        item.transport_type = "出租汽车"
+        ledger_row = build_ledger_rows(record, run_id="test", processed_at="2026-07-27T00:00:00")[0]
+        self.assertEqual(ledger_row.context_remark, "")
 
 
 if __name__ == "__main__":

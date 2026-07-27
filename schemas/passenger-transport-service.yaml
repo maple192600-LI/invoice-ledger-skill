@@ -9,19 +9,19 @@ match_rules:
 
 fields:
   traveler_name:
-    required: true
+    required: false
   traveler_id:
-    required: true
+    required: false
   travel_date:
-    required: true
+    required: false
   departure_place:
-    required: true
+    required: false
   arrival_place:
-    required: true
+    required: false
   travel_class:
-    required: true
+    required: false
   transport_type:
-    required: true
+    required: false
 
 line_table:
   header_aliases:
