@@ -10,7 +10,7 @@ __pycache__/
 .workbuddy/
 private-tests/
 
-output/
+/output/
 outputs/
 runs/
 debug-output/
