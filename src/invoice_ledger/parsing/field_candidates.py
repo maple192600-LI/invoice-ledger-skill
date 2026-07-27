@@ -250,7 +250,7 @@ def _find_value_by_coordinate(spans, label, mode, pattern):
             and abs((s["y0"] + s["y1"]) / 2 - lb_cy) < 16
             and _compact_text(s["text"]) != _compact_text(lb["text"])
         ]
-        cands.sort(key=lambda s: (abs((s["y0"] + s["y1"]) / 2 - lb_cy), s["x0"]))
+        cands.sort(key=lambda s: (s["x0"], abs((s["y0"] + s["y1"]) / 2 - lb_cy)))
     else:
         cands = [
             s for s in spans

@@ -126,3 +126,61 @@ def extract(
             "机动车车辆类型及票面金额结构",
             0.96,
         )
+
+    # 演示版坐标兜底：span 分离致文本流抓空，按 span 坐标补（只增不减，已有值不碰）
+    if text_units.source_file:
+        try:
+            from .._line_item_ocr_table import _read_pdf_spans
+            from ..field_candidates import _find_value_by_coordinate
+            mv_spans = _read_pdf_spans(text_units.source_file, list(text_units.page_range))
+        except Exception:
+            mv_spans = []
+        if mv_spans:
+            for field_name, label, pattern in (
+                ("buyer_name", "购买方名称", r"[一-鿿][一-鿿（）()A-Za-z0-9－-]{2,}"),
+                ("buyer_tax_id", "统一社会信用代码", r"[0-9A-Z]{15,20}"),
+                ("seller_name", "销货单位名称", r"[一-鿿][一-鿿（）()A-Za-z0-9－-]{2,}"),
+                ("seller_tax_id", "纳税人识别号", r"[0-9A-Z]{15,20}"),
+                ("amount_total", "不含税价", r"-?\d[\d,]*\.\d{2}"),
+                ("tax_total", "税额", r"-?\d[\d,]*\.\d{2}"),
+                ("total_with_tax", "价税合计", r"-?\d[\d,]*\.\d{2}"),
+            ):
+                if not fields.get(field_name):
+                    value = _find_value_by_coordinate(mv_spans, label, "right", pattern)
+                    if value:
+                        _add(fields, field_name, value, "机动车坐标兜底", 0.9)
+            if not fields.get("items"):
+                mv_item_name = _find_value_by_coordinate(mv_spans, "车辆类型", "right", r"[一-鿿][一-鿿A-Za-z0-9－-]{1,}")
+                mv_spec = _find_value_by_coordinate(mv_spans, "厂牌型号", "right", r"[一-鿿A-Za-z0-9][一-鿿A-Za-z0-9－-]{1,}")
+                mv_origin = _find_value_by_coordinate(mv_spans, "产地", "right", r"[一-鿿][一-鿿A-Za-z0-9]{1,}")
+                mv_cert = _find_value_by_coordinate(mv_spans, "合格证号", "right", r"[A-Z0-9\-]{3,}")
+                mv_engine = _find_value_by_coordinate(mv_spans, "发动机号码", "right", r"[A-Z0-9\-]{3,}")
+                mv_vehicle_id = _find_value_by_coordinate(mv_spans, "车辆识别代号/车架号码", "right", r"[A-Z0-9]{4,}")
+                mv_rate = _find_value_by_coordinate(mv_spans, "增值税税率", "right", r"\d{1,2}%")
+                mv_amount = next((c.value for c in fields.get("amount_total", [])), None)
+                mv_tax = next((c.value for c in fields.get("tax_total", [])), None)
+                if mv_item_name and mv_amount and mv_tax:
+                    mv_context = "；".join(
+                        f"{label}：{value}"
+                        for label, value in (
+                            ("合格证号", mv_cert),
+                            ("产地", mv_origin),
+                            ("发动机号码", mv_engine),
+                            ("车辆识别代号/车架号码", mv_vehicle_id),
+                        )
+                        if value
+                    )
+                    mv_item = {
+                        "line_no": 1,
+                        "item_name": mv_item_name,
+                        "context_remark": mv_context or None,
+                        "spec_model": mv_spec,
+                        "unit": None,
+                        "quantity": None,
+                        "unit_price": None,
+                        "line_amount": mv_amount,
+                        "tax_rate": mv_rate,
+                        "line_tax_amount": mv_tax,
+                        "line_total_with_tax": _clean_money(str(Decimal(mv_amount) + Decimal(mv_tax))),
+                    }
+                    _add(fields, "items", json.dumps(mv_item, ensure_ascii=False, sort_keys=True), "机动车坐标兜底明细", 0.9)
