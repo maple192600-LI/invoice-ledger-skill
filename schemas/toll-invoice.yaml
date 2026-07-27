@@ -30,12 +30,12 @@ item_context_patterns:
         value: 不征税通行费
   vehicle_plate_no:
     patterns:
-      - '(?:车牌号码|车牌号)[：:]?\s*([\u4e00-\u9fff][A-Z][A-Z0-9]{5,6})'
-      - '([\u4e00-\u9fff][A-Z][A-Z0-9]{5,6})\s+.+?站入'
+      - '(?:车牌号码|车牌号)[：:]?\s*([\u4e00-\u9fff][A-Z]\u00b7?[A-Z0-9]{5,6})'
+      - '([\u4e00-\u9fff][A-Z]\u00b7?[A-Z0-9]{5,6})\s+.+?站入'
   toll_entrance:
     patterns:
       - '(?:入口站?|驶入站)[：:]?\s*([^\s]+)'
-      - '[\u4e00-\u9fff][A-Z][A-Z0-9]{5,6}\s+(.+?站)入'
+      - '[\u4e00-\u9fff][A-Z]\u00b7?[A-Z0-9]{5,6}\s+(.+?站)入'
   toll_exit:
     patterns:
       - '(?:出口站?|驶出站)[：:]?\s*([^\s]+)'
