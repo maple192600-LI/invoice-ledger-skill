@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from statistics import median
 from typing import Any
 
 import fitz
@@ -12,11 +13,85 @@ from ._helpers import _center_x, _compact_text, _is_money_text, _ocr_table_item,
 from ._line_item_sequence_helpers import _textual_spec_tokens
 
 
-def _extract_ocr_table_items(text_units: TextUnits, schema: dict[str, Any]) -> list[dict[str, Any]]:
+def _text_height(units: list[TextUnit]) -> float:
+    heights = [unit.bbox[3] - unit.bbox[1] for unit in units if unit.bbox and unit.bbox[3] > unit.bbox[1]]
+    return median(heights) if heights else 12.0
+
+
+def _cluster_by_page_y(
+    items: list[Any],
+    page_of: Any,
+    y_of: Any,
+    tolerance: float,
+) -> dict[int, list[tuple[float, list[Any]]]]:
+    clustered: dict[int, list[tuple[float, list[Any]]]] = defaultdict(list)
+    by_page: dict[int, list[Any]] = defaultdict(list)
+    for item in items:
+        by_page[page_of(item)].append(item)
+    for page, page_items in by_page.items():
+        for item in sorted(page_items, key=y_of):
+            y = float(y_of(item))
+            if clustered[page] and y - clustered[page][-1][0] <= tolerance:
+                clustered[page][-1][1].append(item)
+            else:
+                clustered[page].append((y, [item]))
+    return clustered
+
+
+def _ocr_table_layout(text_units: TextUnits, schema: dict[str, Any]) -> tuple[dict[str, Any], dict[int, float]]:
+    """从 OCR 表头动态推导列边界，并找出每页的合计截止线。"""
     table_config = schema.get("ocr_table", {})
-    if not isinstance(table_config, dict):
-        table_config = {}
-    item_start_max_x = float(table_config.get("item_start_max_x", float("inf")))
+    config = dict(table_config) if isinstance(table_config, dict) else {}
+    text_to_col = _header_text_to_col(schema)
+    units = [unit for unit in text_units.units if unit.text.strip()]
+    header_units = [unit for unit in units if _compact_text(unit.text) in text_to_col]
+    row_groups = _cluster_by_page_y(
+        units,
+        lambda unit: unit.page,
+        _y0,
+        _text_height(header_units or units) / 4,
+    )
+
+    centers: dict[str, list[float]] = defaultdict(list)
+    header_y: dict[int, float] = {}
+    for page, rows in row_groups.items():
+        candidates = [
+            (
+                y,
+                [(text_to_col[_compact_text(unit.text)], _center_x(unit)) for unit in row if _compact_text(unit.text) in text_to_col],
+            )
+            for y, row in rows
+        ]
+        y_key, pairs = max(candidates, key=lambda item: len({column for column, _ in item[1]}))
+        if len({column for column, _ in pairs}) < 2:
+            continue
+        header_y[page] = float(y_key)
+        for column, center in pairs:
+            centers[column].append(center)
+    if len(centers) >= 2:
+        ordered = sorted(((column, sum(values) / len(values)) for column, values in centers.items()), key=lambda item: item[1])
+        config["column_right_edges"] = {
+            column: (center + ordered[index + 1][1]) / 2
+            for index, (column, center) in enumerate(ordered[:-1])
+        }
+        config["last_column"] = ordered[-1][0]
+        config["use_center_x"] = True
+
+    end_y: dict[int, float] = {}
+    for page, y in header_y.items():
+        for y_key, row_units in row_groups[page]:
+            if y_key <= y:
+                continue
+            row = _compact_text("".join(unit.text for unit in sorted(row_units, key=lambda unit: unit.order)))
+            if "价税合计" in row or "合计" in row or "备注" in row:
+                end_y[page] = float(y_key)
+                break
+    return config, end_y
+
+
+def _extract_ocr_table_items(text_units: TextUnits, schema: dict[str, Any]) -> list[dict[str, Any]]:
+    table_config, end_y_by_page = _ocr_table_layout(text_units, schema)
+    item_start_max_x = float(table_config.get("column_right_edges", {}).get("item_name", table_config.get("item_start_max_x", float("inf"))))
     end_marker_min_x = float(table_config.get("end_marker_min_x", float("inf")))
     end_marker_min_y_delta = float(table_config.get("end_marker_min_y_delta", float("inf")))
     textual_spec_tokens = _textual_spec_tokens(schema)
@@ -24,14 +99,18 @@ def _extract_ocr_table_items(text_units: TextUnits, schema: dict[str, Any]) -> l
     item_starts = [
         index
         for index, unit in enumerate(units)
-        if unit.text.strip().startswith("*") and _x0(unit) < item_start_max_x
+        if unit.text.strip().startswith("*")
+        and _x0(unit) < item_start_max_x
+        and (unit.page not in end_y_by_page or _y0(unit) < end_y_by_page[unit.page])
     ]
     items: list[dict[str, Any]] = []
     for start_position, start_index in enumerate(item_starts):
         end_index = item_starts[start_position + 1] if start_position + 1 < len(item_starts) else len(units)
         group: list[TextUnit] = []
         for unit in units[start_index:end_index]:
-            if unit.text.strip() in {"备注"} or "价税合计" in unit.text:
+            if (
+                unit.page in end_y_by_page and _y0(unit) >= end_y_by_page[unit.page]
+            ) or unit.text.strip() in {"备注"} or "价税合计" in unit.text:
                 break
             if (
                 unit.text.strip().startswith("¥")
@@ -105,36 +184,47 @@ def _derive_digital_edges(
 
     表头行 = 该页匹配列名最多的 y 桶；数电票各页列 x 一致，合并各页表头得全局列锚点。
     """
-    page_buckets: dict[int, dict[int, list[tuple[str, float]]]] = defaultdict(
-        lambda: defaultdict(list)
+    header_spans = [
+        span
+        for span in spans
+        if text_to_col.get(_compact_text(span["text"]))
+    ]
+    if not header_spans:
+        return None
+    heights = [span["y1"] - span["y0"] for span in header_spans if span["y1"] > span["y0"]]
+    page_rows = _cluster_by_page_y(
+        header_spans,
+        lambda span: span["page"],
+        lambda span: span["y0"],
+        (median(heights) / 4) if heights else 3.0,
     )
-    for span in spans:
-        column = text_to_col.get(_compact_text(span["text"]))
-        if column:
-            page_buckets[span["page"]][round(span["y0"])].append(
-                (column, (span["x0"] + span["x1"]) / 2)
-            )
     col_center: dict[str, float] = {}
-    header_y_by_page: dict[int, float] = {}
-    for page, buckets in page_buckets.items():
-        best_y, best_pairs = max(buckets.items(), key=lambda item: len(item[1]))
+    header_boundary_by_page: dict[int, float] = {}
+    for page, rows in page_rows.items():
+        _, best_row = max(
+            rows,
+            key=lambda row: len({text_to_col[_compact_text(span["text"])] for span in row[1]}),
+        )
+        best_pairs = [
+            (text_to_col[_compact_text(span["text"])], (span["x0"] + span["x1"]) / 2)
+            for span in best_row
+        ]
         distinct = {column for column, _ in best_pairs}
         if len(distinct) >= 2:
-            header_y_by_page[page] = float(best_y)
+            header_boundary_by_page[page] = max(float(span["y0"]) for span in best_row)
             for column, center_x in best_pairs:
                 col_center.setdefault(column, center_x)
-    if len(_DIGITAL_NUMERIC_COLUMNS & set(col_center)) < 2 or not header_y_by_page:
+    if len(_DIGITAL_NUMERIC_COLUMNS & set(col_center)) < 2 or not header_boundary_by_page:
         return None
     ordered = sorted(col_center.items(), key=lambda item: item[1])
     edges: dict[str, float] = {}
     for index, (column, center_x) in enumerate(ordered):
         if index + 1 < len(ordered):
             edges[column] = (center_x + ordered[index + 1][1]) / 2
-    return edges, header_y_by_page
+    return edges, header_boundary_by_page
 
 
 _FREIGHT_TRIGGER_FALLBACK = ("运输工具种类", "起运地", "到达地")
-_FREIGHT_DATA_BAND_HEIGHT = 80.0
 _FREIGHT_INTERFERENCE_KEYWORDS = ("价税合计", "备注", "开户", "下载次数", "开票人", "收款人", "复核")
 
 
@@ -180,19 +270,31 @@ def _extract_freight_subtable(
     if len(col_centers) < len(triggers):
         return []
     anchors = sorted(col_centers.items(), key=lambda item: item[1])
+    header_spans = [
+        span
+        for span in spans
+        if round(span["y0"]) == header_y and _compact_text(span["text"]) in text_to_col
+    ]
+    header_bottom = max(span["y1"] for span in header_spans)
+    header_height = max(span["y1"] - span["y0"] for span in header_spans)
 
-    # 数据区下界 = min(首个干扰词 y, 表头 y + 带宽)，避免吸入价税合计/备注区
-    interference_y = next(
-        (s["y0"] for s in spans if any(k in s["text"] for k in _FREIGHT_INTERFERENCE_KEYWORDS)),
-        float("inf"),
+    # 数据区下界由下一结构锚点决定，避免页面缩放后固定像素带截断数据。
+    interference_y = min(
+        (
+            s["y0"]
+            for s in spans
+            if s["y0"] > header_y
+            and any(k in s["text"] for k in _FREIGHT_INTERFERENCE_KEYWORDS)
+        ),
+        default=max((s["y1"] for s in spans), default=float(header_y)) + 1,
     )
-    lower_bound = min(interference_y, header_y + _FREIGHT_DATA_BAND_HEIGHT)
+    lower_bound = interference_y - header_height
     gaps = [anchors[i + 1][1] - anchors[i][1] for i in range(len(anchors) - 1)]
     tol = (min(gaps) / 2) if gaps else 45.0
 
     rows: dict[int, dict[str, str]] = defaultdict(dict)
     for span in spans:
-        if span["y0"] <= header_y + 4 or span["y0"] >= lower_bound:
+        if span["y0"] <= header_bottom or span["y0"] >= lower_bound:
             continue
         cx = (span["x0"] + span["x1"]) / 2
         nearest_col, nearest_cx = min(anchors, key=lambda item: abs(item[1] - cx))
@@ -202,7 +304,7 @@ def _extract_freight_subtable(
     ordered: list[dict[str, str]] = []
     for y_key in sorted(rows):
         row = rows[y_key]
-        if any(row.values()):
+        if len(row) >= len(triggers):
             ordered.append(row)
     return ordered
 
@@ -235,7 +337,7 @@ def _extract_digital_text_table_items(
     derived = _derive_digital_edges(spans, text_to_col)
     if not derived:
         return []
-    edges, header_y_by_page = derived
+    edges, header_boundary_by_page = derived
     table_config = {
         "column_right_edges": edges,
         "last_column": "line_tax_amount",
@@ -249,8 +351,8 @@ def _extract_digital_text_table_items(
 
     detail_units: list[TextUnit] = []
     for page in sorted(by_page):
-        header_y = header_y_by_page.get(page)
-        if header_y is None:
+        header_boundary = header_boundary_by_page.get(page)
+        if header_boundary is None:
             continue
         page_spans = sorted(by_page[page], key=lambda item: item["y0"])
         y_row: dict[int, list[str]] = defaultdict(list)
@@ -263,16 +365,18 @@ def _extract_digital_text_table_items(
                 total_y = float(y_key)
                 break
         if total_y is not None:
+            heights = [span["y1"] - span["y0"] for span in page_spans if span["y1"] > span["y0"]]
+            adjacent_gap = median(heights) * 1.5 if heights else 15.0
             preceding_money = [
                 span["y0"]
                 for span in page_spans
-                if total_y - 15.0 <= span["y0"] <= total_y
+                if total_y - adjacent_gap <= span["y0"] <= total_y
                 and _is_money_text(span["text"])
             ]
             if preceding_money:
                 total_y = min(total_y, *preceding_money)
         for span in page_spans:
-            if span["y0"] <= header_y + 4:
+            if span["y0"] <= header_boundary:
                 continue
             if total_y is not None and span["y0"] >= total_y:
                 continue

@@ -157,6 +157,8 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
         if not _has_value(value):
             continue
         decision = decisions.get(field_name)
+        if decision is None and field_name in InvoiceItem.model_fields:
+            decision = decisions.get("items")
         if not decision:
             if require_missing_evidence:
                 issues.append(f"missing evidence {field_name}")
@@ -167,6 +169,8 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
             issues.append(f"missing evidence {field_name}")
         if decision.get("conflict") is True or "conflict" in risks:
             issues.append(f"conflict {field_name}")
+        if "item_amount_comparison_failed" in risks:
+            issues.append("item amount comparison failed")
         confidence = _decision_confidence(decision)
         if confidence is not None and confidence < LOW_CONFIDENCE_FLOOR:
             issues.append(f"low confidence {field_name}")
@@ -175,9 +179,15 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
     return issues
 
 
-def _variant_identity_issues(record: InvoiceRecord) -> list[str]:
+def _variant_identity_issues(record: InvoiceRecord, schema: dict[str, Any]) -> list[str]:
+    if record.variant_id in schema.get("unverified_variants", []):
+        return [f"未验收变体 {record.variant_id}"]
+    is_standard_family = (
+        schema.get("schema_id") == "standard-invoice"
+        or schema.get("extends") == "standard-invoice"
+    )
     if (
-        record.schema_id == "standard-invoice"
+        is_standard_family
         and record.variant_id == "digital-invoice-form"
         and not has_standard_digital_invoice_number(
             record.schema_id,
@@ -213,7 +223,7 @@ def validate_invoice_record(record: InvoiceRecord, schema: dict[str, Any] | None
             issues.append(f"missing {field_name}")
     if record.quality.data_source != "structured":
         issues.extend(_field_decision_issues(record, required_fields, _requires_field_evidence(active_schema)))
-    issues.extend(_variant_identity_issues(record))
+    issues.extend(_variant_identity_issues(record, active_schema))
 
     line_table = active_schema.get("line_table", {})
     if isinstance(line_table, dict) and line_table.get("required") is True and not record.items:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from copy import deepcopy
 from typing import Any
 
 import yaml
@@ -13,12 +14,35 @@ from .._paths import PROJECT_ROOT  # noqa: F401  (re-exported for downstream use
 
 @lru_cache(maxsize=16)
 def load_schema(schema_id: str = "standard-invoice") -> dict[str, Any]:
+    return _load_schema(schema_id, ())
+
+
+def _load_schema(schema_id: str, inheritance_chain: tuple[str, ...]) -> dict[str, Any]:
+    if schema_id in inheritance_chain:
+        chain = " -> ".join((*inheritance_chain, schema_id))
+        raise ValueError(f"Schema inheritance cycle: {chain}")
+
     schema_path = PROJECT_ROOT / "schemas" / f"{schema_id}.yaml"
     with schema_path.open("r", encoding="utf-8") as file:
         loaded = yaml.safe_load(file)
     if not isinstance(loaded, dict):
         raise ValueError(f"Invalid schema: {schema_id}")
+    parent_id = loaded.get("extends")
+    if parent_id:
+        loaded = _deep_merge(
+            _load_schema(str(parent_id), (*inheritance_chain, schema_id)), loaded
+        )
     return loaded
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = deepcopy(value)
+    return merged
 
 
 @lru_cache(maxsize=1)

@@ -49,6 +49,36 @@ schemas:
     path: schemas/metro-quota-invoice.yaml
     status: active
     stage: stage_two_png_ability_pack
+  - schema_id: building-service
+    name: 建筑服务
+    path: schemas/building-service.yaml
+    status: active
+    stage: digital_invoice_extension
+  - schema_id: refined-oil
+    name: 成品油
+    path: schemas/refined-oil.yaml
+    status: active
+    stage: digital_invoice_extension
+  - schema_id: freight-transport-service
+    name: 货物运输服务
+    path: schemas/freight-transport-service.yaml
+    status: active
+    stage: digital_invoice_extension
+  - schema_id: real-estate-operating-lease
+    name: 不动产经营租赁服务
+    path: schemas/real-estate-operating-lease.yaml
+    status: active
+    stage: digital_invoice_extension
+  - schema_id: passenger-transport-service
+    name: 旅客运输服务
+    path: schemas/passenger-transport-service.yaml
+    status: active
+    stage: digital_invoice_extension
+  - schema_id: toll-invoice
+    name: 通行费
+    path: schemas/toll-invoice.yaml
+    status: active
+    stage: digital_invoice_extension
   - schema_id: standard-invoice
     name: 标准发票类
     path: schemas/standard-invoice.yaml

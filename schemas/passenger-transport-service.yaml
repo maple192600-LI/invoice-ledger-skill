@@ -1,0 +1,41 @@
+schema_id: passenger-transport-service
+name: 旅客运输服务
+extends: standard-invoice
+special_invoice_type_value: 旅客运输服务
+
+match_rules:
+  required_exact_lines:
+    - 旅客运输服务
+
+fields:
+  traveler_name:
+    required: false
+  traveler_id:
+    required: false
+  travel_date:
+    required: false
+  departure_place:
+    required: false
+  arrival_place:
+    required: false
+  travel_class:
+    required: false
+  transport_type:
+    required: false
+
+line_table:
+  header_aliases:
+    traveler_name:
+      - 出行人
+    traveler_id:
+      - 有效身份证件号
+    travel_date:
+      - 出行日期
+    departure_place:
+      - 出发地
+    arrival_place:
+      - 到达地
+    travel_class:
+      - 等级
+    transport_type:
+      - 交通工具类型

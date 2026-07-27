@@ -11,6 +11,7 @@ from ..contracts import FieldCandidate, TextUnits
 from ._helpers import (
     TAX_RATE_RE,
     _add,
+    _append_unique_risk,
     _clean_money,
     _is_money_text,
     _is_number_text,
@@ -53,8 +54,8 @@ def _numeric_line_item(line: str, previous_names: list[str]) -> dict[str, Any] |
             "unit_price": match.group("unit_price"),
             "line_amount": _clean_money(match.group("amount")),
             "tax_rate": rate,
-            "line_tax_amount": "0.00",
-            "line_total_with_tax": _clean_money(match.group("amount")),
+            "line_tax_amount": None,
+            "line_total_with_tax": None,
         }
 
     rate_end = rate_match.end()
@@ -239,6 +240,32 @@ def _extract_sequence_item(
             next_index,
         )
 
+    if (
+        index + 4 < len(lines)
+        and _is_number_text(lines[index])
+        and _is_number_text(lines[index + 1])
+        and _is_money_text(lines[index + 2])
+        and lines[index + 3 : index + 5] == ["*", "*"]
+    ):
+        quantity = lines[index]
+        unit_price = lines[index + 1]
+        amount = _clean_money(lines[index + 2])
+        building_parts, next_index = _building_sequence_parts(lines, index + 5, name_parts)
+        return (
+            {
+                **building_parts,
+                "spec_model": spec,
+                "unit": unit,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "line_amount": amount,
+                "tax_rate": "*",
+                "line_tax_amount": "0.00",
+                "line_total_with_tax": amount,
+            },
+            next_index,
+        )
+
     if index + 2 < len(lines) and _is_number_text(lines[index]) and _is_number_text(lines[index + 1]):
         quantity = lines[index]
         unit_price = lines[index + 1]
@@ -248,9 +275,9 @@ def _extract_sequence_item(
             amount_match = re.search(r"\d+(?:\.\d+)?", amount_line)
             amount = _clean_money(amount_match.group(0)) if amount_match else None
             tax_rate = rate_match.group(1)
-            tax_amount = "0.00" if tax_rate == "不征税" else None
+            tax_amount = None
             building_parts, next_index = _building_sequence_parts(lines, index + 3, name_parts)
-            total = amount if tax_amount == "0.00" else None
+            total = None
             return (
                 {
                     **building_parts,
@@ -342,20 +369,31 @@ def _extract_items_from_text_units(
                 value = json.dumps(item, ensure_ascii=False, sort_keys=True)
                 _add(fields, "items", value, f"ocr table line item {index}", 0.86)
             return
-    if text_units.source != "ocr" and len(text_units.page_range) > 1:
-        coord_items = _extract_digital_text_table_items(text_units, schema)
-        if coord_items:
-            for index, item in enumerate(coord_items, start=1):
-                item = _normalize_ocr_item(item, schema)
-                item["line_no"] = index
-                value = json.dumps(item, ensure_ascii=False, sort_keys=True)
-                _add(fields, "items", value, f"digital table line item {index}", 0.86)
-            return
     _extract_items(_lines(text_units), fields, schema)
-    if text_units.source != "ocr" and not fields.get("items"):
-        # 文本层数电票序列解析失败(0 items)：用坐标表格解析救回列顺序错乱的票
-        # （get_text("blocks") 列序错乱致 _extract_sequence_item 失败，如三一泵路/货物运输）
+    if text_units.source != "ocr":
+        sequence_candidates = fields.get("items", [])
+        sequence_count = len(sequence_candidates)
         coord_items = _extract_digital_text_table_items(text_units, schema)
+        if not coord_items or len(coord_items) < sequence_count:
+            return
+        totals = fields.get("amount_total", [])
+        if totals and len(coord_items) == sequence_count:
+            try:
+                expected = Decimal(totals[0].value)
+                sequence_error = abs(
+                    sum(Decimal(str(json.loads(candidate.value)["line_amount"])) for candidate in sequence_candidates)
+                    - expected
+                )
+                coordinate_error = abs(
+                    sum(Decimal(str(item["line_amount"])) for item in coord_items) - expected
+                )
+                if sequence_error < coordinate_error:
+                    return
+            except (ArithmeticError, KeyError, ValueError, TypeError, json.JSONDecodeError):
+                for candidate in sequence_candidates:
+                    _append_unique_risk(candidate, "item_amount_comparison_failed")
+                return
+        fields.pop("items", None)
         for index, item in enumerate(coord_items, start=1):
             item = _normalize_ocr_item(item, schema)
             item["line_no"] = index

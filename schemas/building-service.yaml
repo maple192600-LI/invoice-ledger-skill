@@ -1,0 +1,18 @@
+schema_id: building-service
+name: 建筑服务
+extends: standard-invoice
+special_invoice_type_value: 建筑服务
+
+match_rules:
+  required_exact_lines:
+    - 建筑服务
+  exclude_any:
+    - 建筑材料
+
+fields:
+  special_invoice_type:
+    required: true
+  service_location:
+    required: true
+  project_name:
+    required: true

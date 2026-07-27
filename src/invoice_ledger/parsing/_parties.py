@@ -65,8 +65,9 @@ def _nearest_name_before(lines: list[str], index: int, schema: dict[str, Any]) -
     return None
 
 
-def _role_tax_ids_from_ocr_columns(text_units: TextUnits | None) -> dict[str, tuple[str, int, str]]:
-    if text_units is None or text_units.source != "ocr":
+def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, str]:
+    """按购买方/销售方表头的横向区域绑定公司名和税号。"""
+    if text_units is None:
         return {}
     units = _units_with_geometry(text_units)
     buyer_headers = [unit for unit in units if _is_party_column_header(unit.text, "buyer")]
@@ -79,12 +80,23 @@ def _role_tax_ids_from_ocr_columns(text_units: TextUnits | None) -> dict[str, tu
     if buyer_x == seller_x:
         return {}
 
-    line_index_by_order = {
-        unit.order: index
-        for index, unit in enumerate(unit for unit in text_units.units if unit.text.strip())
+    header_top = {
+        "buyer": min(float(unit.bbox[1]) for unit in buyer_headers if unit.bbox),
+        "seller": min(float(unit.bbox[1]) for unit in seller_headers if unit.bbox),
     }
-    role_tax_ids: dict[str, tuple[str, int, str]] = {}
-    for unit in units:
+    detail_headers = {"项目名称", "货物或应税劳务服务名称", "规格型号", "单位", "数量", "单价", "金额", "税率征收率", "税额"}
+    detail_top = min(
+        (
+            _center_y(unit)
+            for unit in units
+            if re.sub(r"[\s/、，,:：]+", "", unit.text) in detail_headers
+            and _center_y(unit) > min(header_top.values())
+        ),
+        default=float("inf"),
+    )
+    result: dict[str, str] = {}
+    tax_id_y: dict[str, float] = {}
+    for unit in sorted(units, key=lambda item: (_center_y(item), item.order)):
         text = unit.text.strip()
         if any(term in text for term in TAX_ID_EXCLUDED_CONTEXT_TERMS):
             continue
@@ -93,10 +105,22 @@ def _role_tax_ids_from_ocr_columns(text_units: TextUnits | None) -> dict[str, tu
             if not _is_tax_id_value(value):
                 continue
             role = "buyer" if abs(_center_x(unit) - buyer_x) <= abs(_center_x(unit) - seller_x) else "seller"
-            if role not in role_tax_ids:
-                role_tax_ids[role] = (value, line_index_by_order.get(unit.order, 0), text)
+            if header_top[role] - 5 <= _center_y(unit) < detail_top and f"{role}_tax_id" not in result:
+                result[f"{role}_tax_id"] = value
+                tax_id_y[role] = _center_y(unit)
             break
-    return role_tax_ids
+    for role, anchor_x in (("buyer", buyer_x), ("seller", seller_x)):
+        role_bottom = detail_top if detail_top != float("inf") else tax_id_y.get(role, header_top[role] - 5)
+        role_units = [
+            unit
+            for unit in units
+            if header_top[role] - 5 <= _center_y(unit) <= role_bottom
+            and abs(_center_x(unit) - anchor_x) <= abs(_center_x(unit) - (seller_x if role == "buyer" else buyer_x))
+        ]
+        company = _company_name_in_units(role_units)
+        if company:
+            result[f"{role}_name"] = company
+    return result
 
 
 def _is_party_column_header(text: str, role: str) -> bool:
@@ -143,7 +167,12 @@ def _extract_names_and_tax_ids(
                 buyer_name_evidence = line
 
     tax_ids = _tax_ids(lines)
-    role_tax_ids: dict[str, tuple[str, int, str]] = _role_tax_ids_from_ocr_columns(text_units)
+    column_party_values = _role_party_values_from_columns(text_units)
+    role_tax_ids: dict[str, tuple[str, int, str]] = {}
+    for role in ("buyer", "seller"):
+        value = column_party_values.get(f"{role}_tax_id")
+        if value:
+            role_tax_ids[role] = (value, 0, f"{role} party column")
     unbound_tax_ids: list[tuple[str, int, str]] = []
     for tax_id in tax_ids:
         if any(tax_id[0] == role_tax_id[0] for role_tax_id in role_tax_ids.values()):
@@ -175,9 +204,16 @@ def _extract_names_and_tax_ids(
         _add(fields, "buyer_name", buyer_name, buyer_name_evidence or "buyer name near tax id", 0.98)
     if seller_name:
         _add(fields, "seller_name", seller_name, seller_name_evidence or "seller name near tax id", 0.98)
+    for field_name, value in column_party_values.items():
+        _add(fields, field_name, value, "party column geometry", 0.99)
 
 
 def _company_name_in_units(units: list[TextUnit]) -> str | None:
+    ordered_units = sorted(units, key=lambda item: (_center_y(item), _x0(item), item.order))
+    for unit in ordered_units:
+        company = _company_name_from_text(unit.text)
+        if company:
+            return company
     blocked_terms = [
         "名称",
         "纳税人识别号",
@@ -205,7 +241,7 @@ def _company_name_in_units(units: list[TextUnit]) -> str | None:
     ]
     chinese_units = [
         unit.text.strip()
-        for unit in sorted(units, key=lambda item: (_center_y(item), _x0(item), item.order))
+        for unit in ordered_units
         if _has_chinese(unit.text)
         and len(unit.text.strip()) > 1
         and not TAX_ID_RE.search(unit.text)
@@ -218,7 +254,7 @@ def _company_name_in_units(units: list[TextUnit]) -> str | None:
     for text in chinese_units:
         if any(suffix in text for suffix in preferred_suffixes):
             return text
-    return chinese_units[0] if chinese_units else None
+    return None
 
 
 def _tax_id_in_units(units: list[TextUnit]) -> str | None:

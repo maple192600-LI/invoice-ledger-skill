@@ -166,6 +166,16 @@ def _item_context_remark(item: InvoiceItem) -> str:
     freight = _freight_context(item)
     if freight:
         parts.append(freight)
+    labels = (
+        ("通行费类型", item.toll_variant),
+        ("车牌号", item.vehicle_plate_no),
+        ("入口", item.toll_entrance),
+        ("出口", item.toll_exit),
+        ("通行时间", item.passage_time),
+    )
+    parts.extend(f"{label}：{value}" for label, value in labels if value)
+    if item.discount_for_line_no is not None:
+        parts.append(f"折扣行，关联第{item.discount_for_line_no}行")
     return "；".join(dict.fromkeys(part for part in parts if part))
 
 
