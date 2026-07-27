@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from openpyxl import load_workbook
+from .workbook_repair import safe_load_workbook
 import yaml
 
 
@@ -79,7 +79,7 @@ def _missing_required(fields: dict[str, Any], field_columns: dict[str, str]) -> 
 
 def validate_template_workbook(workbook_path: str | Path, profile: dict[str, Any]) -> dict[str, Any]:
     path = Path(workbook_path)
-    workbook = load_workbook(path, data_only=False)
+    workbook = safe_load_workbook(path, data_only=False)
     try:
         report: dict[str, Any] = {
             "status": "passed",

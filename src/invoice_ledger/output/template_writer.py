@@ -15,7 +15,7 @@ import tempfile
 from typing import Any
 from unicodedata import east_asian_width
 
-from openpyxl import load_workbook
+from .workbook_repair import safe_load_workbook
 from openpyxl.utils import get_column_letter
 import yaml
 
@@ -502,7 +502,7 @@ def _write_with_template_profile(
         )
 
     workbook_path = Path(workbook_path)
-    workbook = load_workbook(workbook_path)
+    workbook = safe_load_workbook(workbook_path)
     result = WriteResult(run_id=run_id, target_sheet=str(profile.get("template_id") or "template"))
     temporary_path: Path | None = None
     try:
