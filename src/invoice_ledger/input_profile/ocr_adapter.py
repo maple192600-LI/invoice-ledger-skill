@@ -353,7 +353,27 @@ def run_ocr_batch(
             )
             for unit in units
         }
-    return _run_paddle_batch(units, ocr_config, pdf_context=pdf_context)
+    results = _run_paddle_batch(units, ocr_config, pdf_context=pdf_context)
+    if ocr_config.get("fallback_device") != "cpu":
+        return results
+    retry_units = [
+        unit
+        for unit in units
+        if results[unit.invoice_unit_id].status == OcrStatus.FAILED
+        and any(
+            "PaddleOCR batch failed on gpu" in message
+            for message in results[unit.invoice_unit_id].messages
+        )
+    ]
+    if retry_units:
+        results.update(
+            _run_paddle_batch(
+                retry_units,
+                {**ocr_config, "device": "cpu"},
+                pdf_context=pdf_context,
+            )
+        )
+    return results
 
 
 def run_ocr(

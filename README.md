@@ -2,8 +2,6 @@
 
 **把本地发票 PDF、图片和扫描件识别成 Excel 发票采集台账。**
 
-<img src="assets/banner.png" alt="invoice-ledger-skill banner" width="100%">
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 ## 项目介绍

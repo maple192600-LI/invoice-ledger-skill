@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from copy import copy
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+import errno
+from hashlib import sha1
+import os
 from pathlib import Path
+import tempfile
 from typing import Any
 from unicodedata import east_asian_width
 
@@ -63,6 +68,41 @@ ROW_FINGERPRINT_FIELDS = (
 
 MIN_COLUMN_WIDTH = 6.0
 MAX_COLUMN_WIDTH = 255.0
+
+
+@contextmanager
+def _exclusive_workbook_lock(workbook_path: Path):
+    lock_root = Path(tempfile.gettempdir()) / "invoice_ledger_locks"
+    lock_root.mkdir(exist_ok=True)
+    lock_name = sha1(str(workbook_path.resolve()).casefold().encode("utf-8")).hexdigest()
+    with (lock_root / lock_name).open("a+b") as lock_file:
+        if lock_file.seek(0, os.SEEK_END) == 0:
+            lock_file.write(b"\0")
+            lock_file.flush()
+        lock_file.seek(0)
+        if os.name == "nt":
+            import msvcrt
+
+            while True:
+                try:
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+                    break
+                except OSError as exc:
+                    if exc.errno not in {errno.EACCES, errno.EDEADLK}:
+                        raise
+            try:
+                yield
+            finally:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _status_labels() -> dict[str, str]:
@@ -143,6 +183,12 @@ def _cell_value(field_name: str, value: Any) -> Any:
     if isinstance(value, list):
         return ",".join(str(item) for item in value)
     return value
+
+
+def _set_cell_value(cell, value: Any) -> None:
+    cell.value = value
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
+        cell.data_type = "s"
 
 
 def _remark_parts(remark: str | None) -> list[str]:
@@ -275,11 +321,14 @@ def _append_rows(ws, fields: dict[str, Any], rows: list[LedgerRow]) -> tuple[int
         for field_name, column in columns.items():
             spec = fields.get(field_name, {})
             cell = ws.cell(target_row, column)
-            cell.value = _value_for_field(
-                field_name,
-                spec if isinstance(spec, dict) else {},
-                values,
-                target_row,
+            _set_cell_value(
+                cell,
+                _value_for_field(
+                    field_name,
+                    spec if isinstance(spec, dict) else {},
+                    values,
+                    target_row,
+                ),
             )
             if isinstance(cell.value, datetime):
                 cell.number_format = "YYYY-MM-DD HH:MM"
@@ -332,11 +381,14 @@ def _append_notice_rows(
         for field_name, column in columns.items():
             spec = fields.get(field_name, {})
             cell = ws.cell(target_row, column)
-            cell.value = _value_for_notice_field(
-                field_name,
-                spec if isinstance(spec, dict) else {},
-                values,
-                target_row,
+            _set_cell_value(
+                cell,
+                _value_for_notice_field(
+                    field_name,
+                    spec if isinstance(spec, dict) else {},
+                    values,
+                    target_row,
+                ),
             )
             if isinstance(cell.value, datetime):
                 cell.number_format = "YYYY-MM-DD HH:MM"
@@ -432,7 +484,7 @@ def _issue_rows(rows: list[LedgerRow]) -> list[LedgerRow]:
     ]
 
 
-def write_with_template_profile(
+def _write_with_template_profile(
     workbook_path: str | Path,
     template_profile_path: str | Path,
     ledger_rows: list[LedgerRow],
@@ -449,8 +501,10 @@ def write_with_template_profile(
             }
         )
 
+    workbook_path = Path(workbook_path)
     workbook = load_workbook(workbook_path)
     result = WriteResult(run_id=run_id, target_sheet=str(profile.get("template_id") or "template"))
+    temporary_path: Path | None = None
     try:
         for sheet_key, sheet_spec in profile["sheets"].items():
             ws = workbook[str(sheet_spec["name"])]
@@ -526,7 +580,46 @@ def write_with_template_profile(
             )
             if mode == "ledger_rows":
                 _autofit_collection_sheet(ws)
-        workbook.save(workbook_path)
+        descriptor, temporary_name = tempfile.mkstemp(
+            dir=workbook_path.parent,
+            prefix=f".{workbook_path.name}.",
+            suffix=".tmp.xlsx",
+        )
+        os.close(descriptor)
+        temporary_path = Path(temporary_name)
+        workbook.save(temporary_path)
+        workbook.close()
+        with temporary_path.open("r+b") as saved_file:
+            os.fsync(saved_file.fileno())
+        saved_report = validate_template_workbook(temporary_path, profile)
+        if saved_report.get("blocked_write") is True or saved_report["status"] != "passed":
+            raise ValueError(
+                {
+                    "message": "Saved workbook does not match profile",
+                    "template_drift_report": saved_report,
+                }
+            )
+        os.replace(temporary_path, workbook_path)
+        temporary_path = None
     finally:
         workbook.close()
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
     return result
+
+
+def write_with_template_profile(
+    workbook_path: str | Path,
+    template_profile_path: str | Path,
+    ledger_rows: list[LedgerRow],
+    run_id: str,
+    recognition_notices: list[RecognitionNotice] | None = None,
+) -> WriteResult:
+    with _exclusive_workbook_lock(Path(workbook_path)):
+        return _write_with_template_profile(
+            workbook_path,
+            template_profile_path,
+            ledger_rows,
+            run_id,
+            recognition_notices,
+        )

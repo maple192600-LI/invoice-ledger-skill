@@ -3,7 +3,7 @@ name: invoice-ledger-skill
 description: Extract local PDF, image, scanned, and XML invoice files into one persistent Excel invoice ledger.
 slug: maple192600-li-invoice-ledger
 displayName: 发票台账本地化采集
-version: 1.0.1
+version: 1.0.2
 summary: 本地识别发票文件并持续写入用户选择的 Excel 台账。
 license: MIT
 ---

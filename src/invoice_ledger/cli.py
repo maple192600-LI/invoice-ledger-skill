@@ -190,9 +190,17 @@ def _resolve_config_path(config_path: str | None) -> Path | None:
 def _load_runtime_config(config_path: str | None) -> dict:
     if not config_path:
         return {}
+    is_auto_ocr = (
+        Path(config_path).as_posix() == AUTO_OCR_CONFIG
+        or _project_path(config_path) == PROJECT_ROOT / AUTO_OCR_CONFIG
+    )
     resolved_config = _resolve_config_path(config_path)
     with resolved_config.open("r", encoding="utf-8") as file:
         loaded = yaml.safe_load(file)
+    if is_auto_ocr and isinstance(loaded, dict):
+        ocr_config = loaded.get("ocr")
+        if isinstance(ocr_config, dict) and str(ocr_config.get("device", "")).startswith("gpu"):
+            ocr_config["fallback_device"] = "cpu"
     return loaded if isinstance(loaded, dict) else {}
 
 
