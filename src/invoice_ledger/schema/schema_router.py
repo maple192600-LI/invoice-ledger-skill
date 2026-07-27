@@ -63,16 +63,23 @@ def _variant_id(schema: dict[str, Any], text: str) -> str | None:
     if unverified_variant:
         return unverified_variant
     variants = schema.get("variants", [])
+    # 子 schema 自定义变体（非通用 base 变体）优先匹配，避免被 extends 继承的
+    # digital-invoice-form / traditional-vat-form 提前吞掉（如通行费征税/不征税）。
+    base_variants = {"digital-invoice-form", "traditional-vat-form"}
     for candidate_variant, spec in schema.get("variant_rules", {}).items():
+        if candidate_variant in base_variants:
+            continue
         if any(keyword in text for keyword in spec.get("keywords", [])):
             return str(candidate_variant)
     configured_default = schema.get("default_variant")
     if configured_default:
         return str(configured_default)
+    for candidate_variant, spec in schema.get("variant_rules", {}).items():
+        if any(keyword in text for keyword in spec.get("keywords", [])):
+            return str(candidate_variant)
     if isinstance(variants, list) and len(variants) == 1:
         return str(variants[0])
     return None
-
 
 def _decide_catalog_schema(text_units: TextUnits, text: str) -> SchemaDecision | None:
     best_match: tuple[int, str, dict[str, Any]] | None = None

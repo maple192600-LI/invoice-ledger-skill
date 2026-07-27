@@ -19,7 +19,13 @@ from ._helpers import (
     _looks_like_spec,
     _normalize_ocr_item,
 )
-from ._line_item_ocr_table import _extract_digital_text_table_items, _extract_ocr_table_items
+from ._line_item_ocr_table import (
+    _extract_digital_text_table_items,
+    _extract_ocr_table_items,
+    _extract_freight_subtable,
+    _merge_freight_into_items,
+    _read_pdf_spans,
+)
 from ._line_item_sequence_helpers import (
     _building_sequence_parts,
     _is_textual_spec_before_rate_and_unit,
@@ -355,6 +361,33 @@ def _extract_items(
         _add(fields, "items", value, f"line item {index}", 0.8)
 
 
+def _merge_freight_into_sequence_items(text_units, schema, fields):
+    """坐标法明细组装失败时，仍把货运五列挂到序列法 items 上（只增不减）。
+    真实货运坐标法组装成功时不触发此分支，行为不变。"""
+    if not text_units.source_file:
+        return
+    item_candidates = fields.get("items") or []
+    if not item_candidates:
+        return
+    try:
+        spans = _read_pdf_spans(text_units.source_file, list(text_units.page_range))
+    except Exception:
+        return
+    freight_rows = _extract_freight_subtable(spans, schema)
+    if not freight_rows:
+        return
+    payloads = []
+    for candidate in item_candidates:
+        try:
+            payloads.append(json.loads(candidate.value))
+        except json.JSONDecodeError:
+            payloads.append({})
+    _merge_freight_into_items(payloads, freight_rows)
+    for candidate, payload in zip(item_candidates, payloads):
+        candidate.value = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+
 def _extract_items_from_text_units(
     text_units: TextUnits,
     fields: dict[str, list[FieldCandidate]],
@@ -375,6 +408,7 @@ def _extract_items_from_text_units(
         sequence_count = len(sequence_candidates)
         coord_items = _extract_digital_text_table_items(text_units, schema)
         if not coord_items or len(coord_items) < sequence_count:
+            _merge_freight_into_sequence_items(text_units, schema, fields)
             return
         totals = fields.get("amount_total", [])
         if totals and len(coord_items) == sequence_count:
