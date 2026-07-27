@@ -22,7 +22,7 @@
 
 ## 快速开始
 
-安装后直接告诉 Codex：
+安装后直接告诉你的 agent：
 
 > “把 `D:\待报销发票` 里的发票识别并写入台账。”
 
@@ -115,21 +115,15 @@
 
 ## 安装
 
-把下面的指令交给 Codex：
+本 Skill 可在 Claude Code、Codex、Cursor、Gemini CLI 等 agent 中使用，完整步骤见 [references/installation.md](references/installation.md)。
 
-```text
-使用 skill-installer 从 GitHub 安装这个公开仓库：maple192600-LI/invoice-ledger-skill。
-```
+简要流程：
 
-安装完成后重启 Codex。
+1. 克隆仓库并挂载到你的 agent 的 skills 目录。
+2. 运行 `python scripts/install_skill_env.py --ocr auto --ledger <台账位置>` 创建本地环境。
+3. 重启 agent，首次启用时询问台账保存位置。
 
-首次启用时，Skill 会询问：
-
-```text
-发票采集台账希望保存到哪个文件夹？也可以直接提供完整的 .xlsx 路径。
-```
-
-选择完成后，Skill 会创建本地运行环境，并把空白台账母版复制到指定位置。已有台账会直接沿用，不会覆盖。
+已有台账会直接沿用，不会覆盖。
 
 ## 运行环境
 
