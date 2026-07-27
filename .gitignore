@@ -29,3 +29,6 @@ desktop.ini
 .DS_Store
 .idea/
 .vscode/
+
+# 真实发票识别台账（含真实发票数据，不入公开仓库）
+/数电发票识别台账.xlsx
