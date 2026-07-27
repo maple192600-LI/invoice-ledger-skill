@@ -167,12 +167,6 @@ def _item_context_remark(item: InvoiceItem) -> str:
     if freight:
         parts.append(freight)
     labels = (
-        ("产权证书/不动产权证号", item.property_certificate_no),
-        ("面积单位", item.area_unit),
-        ("不动产地址", item.real_estate_address),
-        ("租赁开始日期", item.lease_start_date),
-        ("租赁结束日期", item.lease_end_date),
-        ("跨地（市）标志", item.cross_city_flag),
         ("出行人", item.traveler_name),
         ("有效身份证件号", item.traveler_id),
         ("出行日期", item.travel_date),

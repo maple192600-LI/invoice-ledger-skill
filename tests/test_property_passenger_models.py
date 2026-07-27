@@ -4,6 +4,7 @@ import json
 import unittest
 
 from invoice_ledger.contracts import FieldCandidate, FieldCandidates, InvoiceSource, InvoiceUnit, RecognitionStatus, SchemaDecision, SchemaDecisionStatus, TextUnit, TextUnits
+from invoice_ledger.output.ledger_rows import build_ledger_rows
 from invoice_ledger.parsing.field_candidates import _enrich_special_items, generate_field_candidates
 from invoice_ledger.parsing.field_resolver import resolve_invoice_record
 from invoice_ledger.schema.schema_router import decide_schema
@@ -101,6 +102,9 @@ class PropertyPassengerModelsTest(unittest.TestCase):
         self.assertEqual(item.area_unit, "㎡")
         self.assertEqual(item.real_estate_address, "山西省太原市小店区南中环街426号")
         self.assertEqual((item.lease_start_date, item.lease_end_date, item.cross_city_flag), ("2025-04-08", "2025-04-09", "否"))
+        ledger_row = build_ledger_rows(property_record, run_id="test", processed_at="2026-07-27T00:00:00")[0]
+        self.assertEqual(ledger_row.context_remark, "")
+        self.assertNotIn("不动产地址", ledger_row.remark)
         self.assertEqual(decide_schema(text_units("电子发票 发票号码 开票日期 价税合计 *动产租赁*水车租赁")).schema_id, "standard-invoice")
 
     def test_gaode_headers_without_values_stay_empty_and_require_review(self) -> None:
