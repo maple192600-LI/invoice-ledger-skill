@@ -6,6 +6,9 @@ import re
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
+from xml.etree.ElementTree import ParseError
+
+import fitz
 
 from ..contracts import (
     FieldCandidates,
@@ -22,7 +25,7 @@ from ..contracts import (
     SchemaDecisionStatus,
 )
 from ..errors import InvoiceLedgerError
-from ..input_profile.file_profile import profile_input_file
+from ..input_profile.file_profile import _detect_file_type, profile_input_file
 from ..input_profile.invoice_units import build_invoice_units, merge_invoice_units
 from ..input_profile.ocr_adapter import run_ocr_batch
 from ..input_profile.pdf_context import PdfProcessingContext
@@ -269,7 +272,7 @@ def _direct_unit_result(
     }
 
 
-def process_invoice_input(
+def _process_invoice_input(
     input_path: Path,
     runtime_config: dict[str, Any],
     run_id: str,
@@ -365,6 +368,41 @@ def process_invoice_input(
         "invoice_units": invoice_units,
         "unit_results": unit_results,
     }
+
+
+def process_invoice_input(
+    input_path: Path,
+    runtime_config: dict[str, Any],
+    run_id: str,
+    processed_at: str,
+) -> dict[str, Any]:
+    try:
+        return _process_invoice_input(input_path, runtime_config, run_id, processed_at)
+    except (OSError, UnicodeError, ParseError, fitz.FileDataError) as exc:
+        reason = f"读取输入文件失败（{type(exc).__name__}）：{exc}"
+        file_profile = FileProfile(
+            input_file=str(input_path),
+            file_type=_detect_file_type(Path(input_path)),
+            status=RecognitionStatus.FAILED,
+            unit_strategy="unsupported",
+            messages=[reason],
+        )
+        invoice_units = build_invoice_units(file_profile)
+        return {
+            "input": str(input_path),
+            "file_profile": file_profile,
+            "invoice_units": invoice_units,
+            "unit_results": [
+                process_invoice_unit(
+                    unit,
+                    file_profile,
+                    runtime_config,
+                    run_id,
+                    processed_at,
+                )
+                for unit in invoice_units
+            ],
+        }
 
 
 def _preload_ocr_results(
