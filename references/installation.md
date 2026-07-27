@@ -1,7 +1,5 @@
 # 多 Agent 安装说明
 
-本 skill 是一个 Python 项目加标准 `SKILL.md`，遵循 [Agent Skills 开放标准](https://agentskills.io/specification)。任何兼容该标准的 agent 都能识别和使用，包括 Claude Code、OpenAI Codex、Cursor、Gemini CLI、GitHub Copilot、VS Code 等（完整列表见 [agentskills.io](https://agentskills.io)）。
-
 ## 通用前置
 
 - Windows
@@ -26,9 +24,7 @@ git clone https://github.com/maple192600-LI/invoice-ledger-skill.git
 | Gemini CLI | 参考 Gemini CLI 官方文档 | 同 |
 | 其他兼容 agent | 见 [agentskills.io 采用列表](https://agentskills.io) | — |
 
-> Codex 用户也可在 Codex 终端用 `$skill-installer` 输入仓库 URL 安装；`agents/openai.yaml` 是 Codex 专有界面配置，其他 agent 会忽略，不影响使用。
-
-Claude Code 还支持把整个仓库打包为 plugin，通过 `/plugin install` 或 marketplace 分发，详见 [Claude Code Plugins 文档](https://code.claude.com/docs/en/plugins.md)。
+> Codex 用户也可在 Codex 终端用 `$skill-installer` 输入仓库 URL 安装。
 
 ## 第三步：搭建 Python 环境
 
@@ -65,7 +61,3 @@ OCR、模板或路径异常时：
 ```powershell
 .\.venv\Scripts\python.exe scripts\fp_doctor.py
 ```
-
-## 关于 npm
-
-本 skill 是 Python 项目，核心安装痛点是 Python 环境和本地 OCR 模型，而非分发 skill 文件本身。npm（JavaScript 生态）不适合作为本 skill 的安装方式，请按上述步骤用 Git 获取源码并运行 Python 安装器。

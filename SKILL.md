@@ -12,7 +12,7 @@ metadata:
 
 本 skill 在本机识别发票文件，把结果持续追加写入用户选择的同一份 Excel 发票采集台账。所有处理本地完成，不依赖在线 OCR 服务。
 
-遵循 [Agent Skills 开放标准](https://agentskills.io)，任何兼容该标准的 agent（Claude Code、Codex、Cursor、Gemini CLI 等）均可使用。详细安装步骤见 [references/installation.md](references/installation.md)。
+详细安装步骤见 [references/installation.md](references/installation.md)。
 
 ## 适用场景
 
