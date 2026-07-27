@@ -18,6 +18,7 @@ from ..schema.schema_loader import load_schema
 
 from ._helpers import _add, _add_ocr_confidence_risks, _compact_text, _joined, _lines, _schema_section
 from ._invoice_fields import _extract_dates, _extract_invoice_code, _extract_invoice_number, _extract_invoice_type
+from ._line_item_ocr_table import _read_pdf_spans
 from ._line_items import _extract_items_from_text_units, _item_tax_rates
 from ._parties import _extract_names_and_tax_ids, _party_geometry_rule, _party_values_from_geometry
 from ._totals import _extract_money_totals
@@ -283,7 +284,6 @@ def _coordinate_fallback(text_units, fields, schema):
         return
     if not text_units.source_file:
         return
-    from ._line_item_ocr_table import _read_pdf_spans
     try:
         spans = _read_pdf_spans(text_units.source_file, list(text_units.page_range))
     except Exception:
@@ -312,7 +312,7 @@ def _coordinate_fallback(text_units, fields, schema):
             elif field_name == "service_location":
                 # 序列法在演示版可能把项目名拼进发生地；现值包含 project_name 时用坐标干净值替换。
                 project_name = payload.get("project_name")
-                if project_name and project_name in existing and value != existing:
+                if project_name and isinstance(existing, str) and existing.startswith(project_name) and value != existing:
                     payload[field_name] = value
                     candidate.value = json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
