@@ -77,6 +77,9 @@ def _extract_digital(text: str, lines: list[str], fields: dict[str, list[FieldCa
         _add(fields, "buyer_name", buyer, "digital air purchaser", 0.88)
 
     cny = _CNY_RE.findall(text)
+    # 不去重(fuel==fund 同值不同语义合并致004缺失,按位置取值);截断到6防页脚CNY堆积
+    if len(cny) > 6:
+        cny = cny[:6]
     rate_match = _RATE_RE.search(text)
     rate_str = f"{rate_match.group(1)}%" if rate_match else None
 
