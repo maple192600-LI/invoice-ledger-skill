@@ -88,18 +88,22 @@ class FreightTollModelsTest(unittest.TestCase):
             "real-estate-operating-lease",
         )
 
-    def test_unverified_non_tax_etcc_recharge_stays_review_and_does_not_guess_tax(self) -> None:
+    def test_etc_recharge_non_tax_recognized_ready_and_written(self) -> None:
         units = text_units("""电子发票（普通发票）
 发票号码：25142000000026194342
 开票日期：2026年07月26日
-ETC客户服务机构
+名称：山西喜跃发道路建设养护集团有限公司
+统一社会信用代码/纳税人识别号：91140122778108880D
+名称：ETC客户服务机构
+统一社会信用代码/纳税人识别号：91110000000000000A
 ETC充值
 *预付卡充值* 服务 次 1 100.00 100.00 不征税
 不征税
 价税合计（小写）¥100.00""")
         decision = decide_schema(units)
-        self.assertEqual(decision.schema_id, "toll-invoice")
-        self.assertEqual(decision.variant_id, "不征税通行费")
+        # PR#7 后无站入/站出的通行费票面（含 ETC 充值）回退 standard-invoice；要求识别成功、不复核、直接写入
+        self.assertEqual(decision.schema_id, "standard-invoice")
+        self.assertEqual(decision.variant_id, "digital-invoice-form")
         record = validate_invoice_record(
             resolve_invoice_record(
                 InvoiceUnit(
@@ -113,11 +117,12 @@ ETC充值
                 generate_field_candidates(units, decision),
             )
         )
-        self.assertEqual(record.items[0].toll_variant, "不征税通行费")
+        # 不征税发票：明细无税额，合计金额=价税合计、税额=0（不编造税额）
         self.assertIsNone(record.items[0].line_tax_amount)
-        self.assertIsNone(record.invoice.tax_total)
-        self.assertEqual(record.quality.status.value, "review_required")
-        self.assertIn("未验收变体 不征税通行费", record.quality.remark)
+        self.assertEqual(str(record.invoice.amount_total), "100.00")
+        self.assertEqual(str(record.invoice.tax_total), "0.00")
+        self.assertEqual(str(record.invoice.total_with_tax), "100.00")
+        self.assertEqual(record.quality.status.value, "ready")
 
 
 if __name__ == "__main__":

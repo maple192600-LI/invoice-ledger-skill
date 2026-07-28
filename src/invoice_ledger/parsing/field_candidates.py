@@ -318,6 +318,17 @@ def _coordinate_fallback(text_units, fields, schema):
 
 
 
+def _fill_non_tax_totals(fields):
+    """不征税发票(所有明细不征税):金额=价税合计、税额=0。否则不征税发票卡 amount_total 缺致 review。"""
+    if fields.get("amount_total") or not fields.get("total_with_tax"):
+        return
+    rates = _item_tax_rates(fields)
+    if rates and all(r == "不征税" for r in rates):
+        total = fields["total_with_tax"][0].value
+        _add(fields, "amount_total", total, "不征税发票金额=价税合计", 0.9)
+        _add(fields, "tax_total", "0.00", "不征税发票税额0", 0.9)
+
+
 def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -> FieldCandidates:
     fields: dict[str, list[FieldCandidate]] = {}
     if decision.decision != SchemaDecisionStatus.MATCHED or not decision.schema_id:
@@ -361,6 +372,7 @@ def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -
     _normalize_invoice_type_from_context(lines, fields, decision, schema)
     _add_ocr_confidence_risks(text_units, fields)
     _coordinate_fallback(text_units, fields, schema)
+    _fill_non_tax_totals(fields)
 
     return FieldCandidates(
         invoice_unit_id=text_units.invoice_unit_id,
