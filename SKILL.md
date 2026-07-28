@@ -4,7 +4,7 @@ description: 本地识别 PDF、图片、扫描件和 XML 发票，持续追加�
 license: MIT
 compatibility: Windows、Python 3.11+、本地 OCR（PaddleOCR，可选 GPU），无需联网
 metadata:
-  version: "1.0.2"
+  version: "1.1.0"
   author: maple192600-LI
 ---
 
