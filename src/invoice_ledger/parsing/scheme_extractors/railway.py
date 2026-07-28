@@ -9,26 +9,33 @@ from ...contracts import (
     TextUnits,
 )
 
-from .._helpers import _add, _first_regex, _joined, _money_after_labels, _number_after_label, _schema_output_default
+from .._helpers import _add, _clean_money, _first_regex, _joined, _money_after_labels, _number_after_label, _schema_output_default
 from .._invoice_fields import _date_after_labels
 from .._line_items import _add_json_item
+from .._line_item_ocr_table import _read_pdf_spans
 from .._parties import _company_name_from_text, _railway_station_names
 from .._totals import _add_non_tax_totals
 
+_RAILWAY_MONEY_PAT = r"[¥￥]?\s*-?\d[\d,]*\.\d+"
 
-def _railway_coord_value(text_units, label, pattern, clean=False):
-    """演示版 span 分离致文本流抓空时，按 span 坐标补 invoice_no/票价（只增不减）。"""
+
+def _read_railway_spans(text_units: TextUnits) -> list:
+    """读 PDF spans（演示版坐标兜底用，失败返回空）。"""
+    if not text_units.source_file:
+        return []
     try:
-        from .._line_item_ocr_table import _read_pdf_spans
+        return _read_pdf_spans(text_units.source_file, list(text_units.page_range)) or []
+    except Exception:
+        return []
+
+
+def _railway_coord_hit(spans: list, label: str, pattern: str) -> str | None:
+    """按 span 坐标找标签右方值（返回原文，调用方按需清洗）。"""
+    try:
         from ..field_candidates import _find_value_by_coordinate
-        from .._helpers import _clean_money
-        spans = _read_pdf_spans(text_units.source_file, list(text_units.page_range))
     except Exception:
         return None
-    hit = _find_value_by_coordinate(spans, label, "right", pattern)
-    if not hit:
-        return None
-    return _clean_money(hit) if clean else hit
+    return _find_value_by_coordinate(spans, label, "right", pattern)
 
 
 def extract(
@@ -45,8 +52,11 @@ def extract(
     _add(fields, "invoice_type", invoice_type, "railway ticket title", 0.96)
 
     invoice_no = _number_after_label(lines, "发票号码", r"\d{8,20}")
-    if not invoice_no and text_units.source_file:
-        invoice_no = _railway_coord_value(text_units, "发票号码", r"\d{8,20}")
+    rw_spans: list = []
+    if not invoice_no:
+        rw_spans = _read_railway_spans(text_units)
+        if rw_spans:
+            invoice_no = _railway_coord_hit(rw_spans, "发票号码", r"\d{8,20}")
     if invoice_no:
         _add(fields, "invoice_no", invoice_no, "railway invoice number", 0.96)
 
@@ -66,10 +76,15 @@ def extract(
         _add(fields, "seller_name", seller_name, "railway seller default", 0.88)
 
     total = _money_after_labels(lines, ["退票费", "票价"])
-    if not total and text_units.source_file:
-        total = _railway_coord_value(text_units, "退票费", r"[¥￥]?\s*-?\d[\d,]*\.\d+", clean=True)
-        if not total:
-            total = _railway_coord_value(text_units, "票价", r"[¥￥]?\s*-?\d[\d,]*\.\d+", clean=True)
+    if not total:
+        if not rw_spans:
+            rw_spans = _read_railway_spans(text_units)
+        if rw_spans:
+            for label in ("退票费", "票价"):
+                hit = _railway_coord_hit(rw_spans, label, _RAILWAY_MONEY_PAT)
+                if hit:
+                    total = _clean_money(hit)
+                    break
     _add_non_tax_totals(fields, total, "railway ticket amount", 0.94)
 
     if not total:
@@ -98,4 +113,3 @@ def extract(
         "railway ticket item",
         0.9,
     )
-
