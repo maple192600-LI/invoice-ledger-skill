@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 from typing import Any
+from unicodedata import normalize
 
 from ..contracts import SchemaDecision, SchemaDecisionStatus, TextUnits
 from .schema_loader import load_schema, load_schema_catalog
 
 
 def _joined_text(text_units: TextUnits) -> str:
-    return "\n".join(unit.text for unit in text_units.units)
+    return normalize("NFKC", "\n".join(unit.text for unit in text_units.units))
+
+
+def _term(value: object) -> str:
+    return normalize("NFKC", str(value))
 
 
 def _schema_match_score(text: str, schema: dict[str, Any]) -> int:
@@ -21,20 +26,20 @@ def _schema_match_score(text: str, schema: dict[str, Any]) -> int:
     if not isinstance(rules, dict):
         return 0
 
-    exclude_any = [str(term) for term in rules.get("exclude_any", [])]
+    exclude_any = [_term(term) for term in rules.get("exclude_any", [])]
     if any(term and term in text for term in exclude_any):
         return 0
 
-    required_all = [str(term) for term in rules.get("required_all", [])]
+    required_all = [_term(term) for term in rules.get("required_all", [])]
     if required_all and not all(term in text for term in required_all):
         return 0
 
     exact_lines = {line.strip() for line in text.splitlines() if line.strip()}
-    required_exact_lines = [str(term) for term in rules.get("required_exact_lines", [])]
+    required_exact_lines = [_term(term) for term in rules.get("required_exact_lines", [])]
     if required_exact_lines and not all(term in exact_lines for term in required_exact_lines):
         return 0
 
-    required_any = [str(term) for term in rules.get("required_any", [])]
+    required_any = [_term(term) for term in rules.get("required_any", [])]
     any_score = sum(1 for term in required_any if term and term in text)
     min_required_any = int(rules.get("min_required_any", 1 if required_any else 0))
     if any_score < min_required_any:
@@ -52,7 +57,7 @@ def _unverified_variant_match(schema: dict[str, Any], text: str) -> tuple[str | 
         spec = rules.get(variant, {})
         if not isinstance(spec, dict):
             continue
-        required_all = [str(term) for term in spec.get("required_all", [])]
+        required_all = [_term(term) for term in spec.get("required_all", [])]
         if required_all and all(term in text for term in required_all):
             return str(variant), required_all
     return None, []
@@ -69,13 +74,13 @@ def _variant_id(schema: dict[str, Any], text: str) -> str | None:
     for candidate_variant, spec in schema.get("variant_rules", {}).items():
         if candidate_variant in base_variants:
             continue
-        if any(keyword in text for keyword in spec.get("keywords", [])):
+        if any(_term(keyword) in text for keyword in spec.get("keywords", [])):
             return str(candidate_variant)
     configured_default = schema.get("default_variant")
     if configured_default:
         return str(configured_default)
     for candidate_variant, spec in schema.get("variant_rules", {}).items():
-        if any(keyword in text for keyword in spec.get("keywords", [])):
+        if any(_term(keyword) in text for keyword in spec.get("keywords", [])):
             return str(candidate_variant)
     if isinstance(variants, list) and len(variants) == 1:
         return str(variants[0])
@@ -120,7 +125,7 @@ def decide_schema(text_units: TextUnits) -> SchemaDecision:
     unsupported_rules = schema.get("match_rules", {}).get("unsupported_current", [])
     for unsupported in unsupported_rules:
         keyword = unsupported.get("keyword")
-        if keyword and keyword in text:
+        if keyword and _term(keyword) in text:
             return SchemaDecision(
                 invoice_unit_id=text_units.invoice_unit_id,
                 schema_id=None,
@@ -131,7 +136,7 @@ def decide_schema(text_units: TextUnits) -> SchemaDecision:
             )
 
     standard_signals = schema.get("match_rules", {}).get("required_any", [])
-    score = sum(1 for signal in standard_signals if signal in text)
+    score = sum(1 for signal in standard_signals if _term(signal) in text)
     if score < 2:
         return SchemaDecision(
             invoice_unit_id=text_units.invoice_unit_id,

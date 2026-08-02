@@ -64,8 +64,27 @@ def _extract_pdf_text(
     try:
         for page_index in unit.page_range or range(1, doc.page_count + 1):
             page = doc.load_page(page_index - 1)
-            page_blocks = page.get_text("blocks")
-            if page_blocks:
+            page_start = len(blocks)
+            for block in page.get_text("dict").get("blocks", []):
+                if block.get("type", 0) != 0:
+                    continue
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        text = str(span.get("text", "")).strip()
+                        if not text:
+                            continue
+                        blocks.append(
+                            {
+                                "text": text,
+                                "page": page_index,
+                                "bbox": list(span["bbox"]),
+                                "confidence": None,
+                                "order": len(blocks) + 1,
+                                "source": "pdf_text",
+                            }
+                        )
+            if len(blocks) == page_start:
+                page_blocks = page.get_text("blocks")
                 for block in page_blocks:
                     x0, y0, x1, y1, text, *_ = block
                     blocks.extend(
@@ -76,7 +95,7 @@ def _extract_pdf_text(
                             start_order=len(blocks) + 1,
                         )
                     )
-            else:
+            if len(blocks) == page_start:
                 text = page.get_text("text") or ""
                 for line in text.splitlines():
                     blocks.append(

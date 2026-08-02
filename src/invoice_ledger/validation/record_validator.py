@@ -96,6 +96,17 @@ def _check_line_totals(record: InvoiceRecord) -> list[str]:
     return issues
 
 
+def _check_line_amount_product(record: InvoiceRecord) -> list[str]:
+    return [
+        f"line {item.line_no}: quantity * unit_price != line_amount"
+        for item in record.items
+        if item.quantity is not None
+        and item.unit_price is not None
+        and item.line_amount is not None
+        and not _close(item.quantity * item.unit_price, item.line_amount)
+    ]
+
+
 def _check_sum_line_amount(record: InvoiceRecord) -> list[str]:
     item_amount_sum = sum((item.line_amount or Decimal("0.00")) for item in record.items)
     if not _close(item_amount_sum, record.invoice.amount_total):
@@ -114,6 +125,7 @@ AMOUNT_CHECKS = {
     "amount_completeness_check": _check_amount_completeness,
     "amount_total_plus_tax_total_equals_total_with_tax": _check_invoice_total,
     "line_amount_plus_line_tax_amount_equals_line_total_with_tax": _check_line_totals,
+    "quantity_times_unit_price_equals_line_amount": _check_line_amount_product,
     "sum_line_amount_equals_amount_total": _check_sum_line_amount,
     "sum_line_tax_amount_equals_tax_total": _check_sum_line_tax_amount,
 }
@@ -171,6 +183,8 @@ def _field_decision_issues(record: InvoiceRecord, required_fields: list[str], re
             issues.append(f"conflict {field_name}")
         if "item_amount_comparison_failed" in risks:
             issues.append("item amount comparison failed")
+        if "tax_id_order_fallback" in risks and field_name in {"buyer_tax_id", "seller_tax_id"}:
+            issues.append(f"uncertain party role {field_name}")
         confidence = _decision_confidence(decision)
         if confidence is not None and confidence < LOW_CONFIDENCE_FLOOR:
             issues.append(f"low confidence {field_name}")
@@ -208,6 +222,18 @@ def _variant_identity_issues(record: InvoiceRecord, schema: dict[str, Any]) -> l
     return []
 
 
+def _party_identity_issues(record: InvoiceRecord) -> list[str]:
+    invoice = record.invoice
+    if (
+        invoice.buyer_name
+        and invoice.seller_name
+        and invoice.buyer_name.strip() == invoice.seller_name.strip()
+        and invoice.buyer_tax_id != invoice.seller_tax_id
+    ):
+        return ["buyer_name equals seller_name with different tax ids"]
+    return []
+
+
 def validate_invoice_record(record: InvoiceRecord, schema: dict[str, Any] | None = None) -> InvoiceRecord:
     if record.quality.status == RecognitionStatus.UNMODELED:
         return record
@@ -224,6 +250,7 @@ def validate_invoice_record(record: InvoiceRecord, schema: dict[str, Any] | None
     if record.quality.data_source != "structured":
         issues.extend(_field_decision_issues(record, required_fields, _requires_field_evidence(active_schema)))
     issues.extend(_variant_identity_issues(record, active_schema))
+    issues.extend(_party_identity_issues(record))
 
     line_table = active_schema.get("line_table", {})
     if isinstance(line_table, dict) and line_table.get("required") is True and not record.items:

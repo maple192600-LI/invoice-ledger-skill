@@ -38,12 +38,27 @@ def _cluster_by_page_y(
     return clustered
 
 
+def _visual_row_order(units: list[TextUnit]) -> list[TextUnit]:
+    rows = _cluster_by_page_y(
+        units,
+        lambda unit: unit.page,
+        _y0,
+        _text_height(units) / 4,
+    )
+    return [
+        unit
+        for page in sorted(rows)
+        for _, row in rows[page]
+        for unit in sorted(row, key=lambda item: (_x0(item), item.order))
+    ]
+
+
 def _ocr_table_layout(text_units: TextUnits, schema: dict[str, Any]) -> tuple[dict[str, Any], dict[int, float]]:
     """从 OCR 表头动态推导列边界，并找出每页的合计截止线。"""
     table_config = schema.get("ocr_table", {})
     config = dict(table_config) if isinstance(table_config, dict) else {}
     text_to_col = _header_text_to_col(schema)
-    units = [unit for unit in text_units.units if unit.text.strip()]
+    units = _visual_row_order([unit for unit in text_units.units if unit.text.strip()])
     header_units = [unit for unit in units if _compact_text(unit.text) in text_to_col]
     row_groups = _cluster_by_page_y(
         units,
@@ -95,7 +110,7 @@ def _extract_ocr_table_items(text_units: TextUnits, schema: dict[str, Any]) -> l
     end_marker_min_x = float(table_config.get("end_marker_min_x", float("inf")))
     end_marker_min_y_delta = float(table_config.get("end_marker_min_y_delta", float("inf")))
     textual_spec_tokens = _textual_spec_tokens(schema)
-    units = [unit for unit in text_units.units if unit.text.strip()]
+    units = _visual_row_order([unit for unit in text_units.units if unit.text.strip()])
     item_starts = [
         index
         for index, unit in enumerate(units)
@@ -389,7 +404,7 @@ def _extract_digital_text_table_items(
                     source="pdf_text",
                 )
             )
-    detail_units.sort(key=lambda unit: (unit.page, _y0(unit), _x0(unit)))
+    detail_units = _visual_row_order(detail_units)
     if not detail_units:
         return []
 

@@ -38,9 +38,13 @@ def _add(fields: dict[str, list[FieldCandidate]], field_name: str, value: Any, e
     if value is None or value == "":
         return
     text_value = str(value)
-    existing = {candidate.value for candidate in fields.setdefault(field_name, [])}
-    if text_value not in existing:
-        fields[field_name].append(_candidate(text_value, evidence, confidence, risk))
+    candidates = fields.setdefault(field_name, [])
+    for index, candidate in enumerate(candidates):
+        if candidate.value == text_value:
+            if confidence > candidate.confidence:
+                candidates[index] = _candidate(text_value, evidence, confidence, risk)
+            return
+    candidates.append(_candidate(text_value, evidence, confidence, risk))
 
 
 def _role_near_line(lines: list[str], index: int) -> str | None:

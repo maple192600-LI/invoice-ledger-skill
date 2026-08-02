@@ -204,6 +204,7 @@ amount_checks:
   - amount_completeness_check
   - amount_total_plus_tax_total_equals_total_with_tax
   - line_amount_plus_line_tax_amount_equals_line_total_with_tax
+  - quantity_times_unit_price_equals_line_amount
   - sum_line_amount_equals_amount_total
   - sum_line_tax_amount_equals_tax_total
 

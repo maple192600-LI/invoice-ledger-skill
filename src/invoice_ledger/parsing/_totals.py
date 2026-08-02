@@ -21,8 +21,17 @@ def _extract_money_totals_from_logical_lines(
     fields: dict[str, list[FieldCandidate]],
 ) -> None:
     # 单页数电票的文本块同样会按列拆散；用视觉逻辑行取合计，不能只留给多页票。
-    final_page = max(text_units.page_range) if text_units.source != "ocr" else None
     logical_lines = logical_text_lines(text_units)
+    total_pages = [
+        line.page
+        for line in logical_lines
+        if "价税合计" in _compact_text(line.text) and "小写" in _compact_text(line.text)
+    ]
+    final_page = (
+        max(total_pages or text_units.page_range)
+        if text_units.source != "ocr"
+        else None
+    )
     line_heights = [line.bbox[3] - line.bbox[1] for line in logical_lines if line.bbox and line.bbox[3] > line.bbox[1]]
     adjacent_line_gap = (median(line_heights) * 1.2) if line_heights else 12.0
     for index, line in enumerate(logical_lines):

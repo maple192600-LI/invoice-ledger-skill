@@ -70,8 +70,8 @@ def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, s
     if text_units is None:
         return {}
     units = _units_with_geometry(text_units)
-    buyer_headers = [unit for unit in units if _is_party_column_header(unit.text, "buyer")]
-    seller_headers = [unit for unit in units if _is_party_column_header(unit.text, "seller")]
+    buyer_headers = _party_column_headers(units, "buyer")
+    seller_headers = _party_column_headers(units, "seller")
     if not buyer_headers or not seller_headers:
         return {}
 
@@ -79,6 +79,7 @@ def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, s
     seller_x = sum(_center_x(unit) for unit in seller_headers) / len(seller_headers)
     if buyer_x == seller_x:
         return {}
+    split_x = _page_width(units) / 2
 
     header_top = {
         "buyer": min(float(unit.bbox[1]) for unit in buyer_headers if unit.bbox),
@@ -104,23 +105,51 @@ def _role_party_values_from_columns(text_units: TextUnits | None) -> dict[str, s
             value = match.group(0)
             if not _is_tax_id_value(value):
                 continue
-            role = "buyer" if abs(_center_x(unit) - buyer_x) <= abs(_center_x(unit) - seller_x) else "seller"
+            role = "buyer" if _center_x(unit) < split_x else "seller"
             if header_top[role] - 5 <= _center_y(unit) < detail_top and f"{role}_tax_id" not in result:
                 result[f"{role}_tax_id"] = value
                 tax_id_y[role] = _center_y(unit)
             break
-    for role, anchor_x in (("buyer", buyer_x), ("seller", seller_x)):
+    for role in ("buyer", "seller"):
         role_bottom = detail_top if detail_top != float("inf") else tax_id_y.get(role, header_top[role] - 5)
         role_units = [
             unit
             for unit in units
             if header_top[role] - 5 <= _center_y(unit) <= role_bottom
-            and abs(_center_x(unit) - anchor_x) <= abs(_center_x(unit) - (seller_x if role == "buyer" else buyer_x))
+            and ((_center_x(unit) < split_x) if role == "buyer" else (_center_x(unit) >= split_x))
         ]
         company = _company_name_in_units(role_units)
         if company:
             result[f"{role}_name"] = company
     return result
+
+
+def _party_column_headers(units: list[TextUnit], role: str) -> list[TextUnit]:
+    direct = [unit for unit in units if _is_party_column_header(unit.text, role)]
+    if direct:
+        return direct
+    target = "购买方信息" if role == "buyer" else "销售方信息"
+    for start in (unit for unit in units if unit.text.strip() == target[0] and unit.bbox):
+        matched = [start]
+        for character in target[1:]:
+            previous = matched[-1]
+            height = max(1.0, float(previous.bbox[3]) - float(previous.bbox[1]))
+            candidates = [
+                unit
+                for unit in units
+                if unit.bbox
+                and unit.page == start.page
+                and unit.text.strip() == character
+                and _center_y(unit) > _center_y(previous)
+                and _center_y(unit) - _center_y(previous) <= height * 3
+                and abs(_center_x(unit) - _center_x(start)) <= height
+            ]
+            if not candidates:
+                break
+            matched.append(min(candidates, key=_center_y))
+        if len(matched) == len(target):
+            return matched
+    return []
 
 
 def _is_party_column_header(text: str, role: str) -> bool:
@@ -168,6 +197,12 @@ def _extract_names_and_tax_ids(
 
     tax_ids = _tax_ids(lines)
     column_party_values = _role_party_values_from_columns(text_units)
+    if column_party_values.get("buyer_name"):
+        buyer_name = column_party_values["buyer_name"]
+        buyer_name_evidence = "party column geometry"
+    if column_party_values.get("seller_name"):
+        seller_name = column_party_values["seller_name"]
+        seller_name_evidence = "party column geometry"
     role_tax_ids: dict[str, tuple[str, int, str]] = {}
     for role in ("buyer", "seller"):
         value = column_party_values.get(f"{role}_tax_id")

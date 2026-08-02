@@ -180,6 +180,10 @@ def _ocr_table_item(
     amount = _last_money(amount_parts)
     tax_amount = _last_money(tax_parts)
     tax_rate = _last_rate(rate_parts)
+    if rate_parts == ["*"]:
+        tax_rate = "*"
+    if tax_parts == ["*"] and tax_rate == "*":
+        tax_amount = "0.00"
     if not item_name or not amount or not tax_amount or not tax_rate:
         return None
     quantity = _last_number(quantity_parts)
