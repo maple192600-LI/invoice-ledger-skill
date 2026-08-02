@@ -22,7 +22,11 @@
 
 ## 快速开始
 
-安装后直接告诉你的 agent：
+把本项目地址发给支持 Agent Skills 的智能体，告诉它：
+
+> “安装并使用这个发票台账 Skill。”
+
+安装完成后，可以直接告诉智能体：
 
 > “把 `D:\待报销发票` 里的发票识别并写入台账。”
 
@@ -113,28 +117,12 @@
 - 医疗收费票据
 - 税收完税证明
 
-## 安装
-
-本 Skill 可在 Claude Code、Codex、Cursor、Gemini CLI 等 agent 中使用。
-
-简要流程：
-
-1. 克隆仓库并挂载到你的 agent 的 skills 目录。
-2. 运行 `python scripts/install_skill_env.py --ocr auto --ledger <台账位置>` 创建本地环境。
-3. 重启 agent，首次启用时询问台账保存位置。
-
-已有台账会直接沿用，不会覆盖。
-
 ## 运行环境
 
 - Windows
 - Python 3.11+
-- PyMuPDF
-- openpyxl
-- PyYAML
-- Pydantic
-- PaddleOCR
-- NVIDIA GPU 可用时自动使用 GPU，否则使用 CPU
+- 首次安装依赖通常需要联网
+- 发票识别在本机完成，不依赖在线 OCR 服务
 
 ## 使用边界
 

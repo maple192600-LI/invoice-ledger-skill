@@ -2,7 +2,7 @@
 name: invoice-ledger-skill
 description: 本地识别 PDF、图片、扫描件和 XML 发票，持续追加写入同一份 Excel 发票采集台账。适用于批量整理发票、多页多票 PDF 拆分入账、续写已有台账、识别图片或扫描发票。Local OCR-based extraction of PDF/image/scanned/XML invoices into one persistent Excel ledger.
 license: MIT
-compatibility: Windows、Python 3.11+、本地 OCR（PaddleOCR，可选 GPU），无需联网
+compatibility: Windows、Python 3.11+、本地 OCR（PaddleOCR，可选 GPU）；首次安装依赖通常需要联网，发票识别运行无需在线 OCR 服务
 metadata:
   version: "1.1.0"
   author: maple192600-LI
@@ -11,6 +11,8 @@ metadata:
 # 发票台账本地化采集
 
 本 skill 在本机识别发票文件，把结果持续追加写入用户选择的同一份 Excel 发票采集台账。所有处理本地完成，不依赖在线 OCR 服务。
+
+执行脚本前，先定位本 `SKILL.md` 所在目录并将其作为当前工作目录。文档中的脚本、配置和模板路径均以 skill 根目录为基准。
 
 ## 适用场景
 
