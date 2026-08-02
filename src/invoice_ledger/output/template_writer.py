@@ -567,7 +567,7 @@ def _write_with_template_profile(
                 else:
                     written, skipped = _append_notice_rows(ws, fields, recognition_notices)
                     result.review_required_rows = sum(
-                        notice.issue_type == "需复核" for notice in recognition_notices
+                        notice.severity == "需复核" for notice in recognition_notices
                     )
             result.actions.append(
                 {
