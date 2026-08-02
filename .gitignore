@@ -10,6 +10,10 @@ __pycache__/
 .workbuddy/
 private-tests/
 
+# Local-only design notes and regression tests; never publish personal material.
+/docs/
+/tests/
+
 /output/
 outputs/
 runs/
