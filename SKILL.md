@@ -1,92 +1,94 @@
 ---
 name: invoice-ledger-skill
-description: 本地识别 PDF、图片、扫描件和 XML 发票，持续追加写入同一份 Excel 发票采集台账。适用于批量整理发票、多页多票 PDF 拆分入账、续写已有台账、识别图片或扫描发票。Local OCR-based extraction of PDF/image/scanned/XML invoices into one persistent Excel ledger.
-license: MIT
-compatibility: Windows、Python 3.11+、本地 OCR（PaddleOCR，可选 GPU）；首次安装依赖通常需要联网，发票识别运行无需在线 OCR 服务
-metadata:
-  version: "1.1.0"
-  author: maple192600-LI
+description: 批量读取本地 PDF、图片、XML 等发票文件，提取票面和商品明细，拆分多票 PDF、合并已确认属于同一发票的连续页面，并将结果追加到用户指定的 Excel 发票采集台账；重复项跳过，异常集中写入“识别提示”。当用户要求识别、整理、汇总、导入或批量处理发票，续写已有发票台账，或处理数电发票、多页 PDF、扫描件、出租车票、定额发票时使用。优先直接解析原始文本型 PDF；仅在输入没有可用文本层时使用本地 OCR。
 ---
 
-# 发票台账本地化采集
+# 发票识别并追加台账
 
-本 skill 在本机识别发票文件，把结果持续追加写入用户选择的同一份 Excel 发票采集台账。所有处理本地完成，不依赖在线 OCR 服务。
+把用户提供的发票完整处理到 Excel 写入和结果汇报。默认批量处理，复用已经配置的环境和台账。
 
-执行脚本前，先定位本 `SKILL.md` 所在目录并将其作为当前工作目录。文档中的脚本、配置和模板路径均以 skill 根目录为基准。
+## 执行原则
 
-## 适用场景
+- 以本 `SKILL.md` 所在目录为 skill 根目录，所有相对路径和命令都从该目录执行。
+- 优先使用数电发票原始文本型 PDF，不要先转成图片。图片、扫描件和没有文本层的 PDF 才使用 OCR。
+- 无 NVIDIA GPU 时不要对大量图片型发票运行 CPU OCR。传统出租车发票、定额发票等少量特殊票据可以使用 CPU OCR。
+- 台账只追加新数据并跳过疑似重复。禁止覆盖、清空或替换已有数据，禁止使用 `--replace-existing` 和 `--update-existing`。
+- 没有证据的字段保持为空或待复核，不猜测发票号码、购销双方、金额、税额和商品明细。
+- 不支持 OFD。要求用户从电子税务局税务数字账户下载 PDF 版式文件。
 
-- 一个文件夹里有很多发票 → 批量识别写入台账
-- 一个 PDF 合并了多张发票 → 逐页拆分，各自入账
-- 同一发票跨多页明细 → 确认身份后合并明细
-- 图片或扫描件发票 → 本地 OCR 识别
+## 1. 确定输入和台账
 
-## 前置要求
+从用户请求中取得单个发票文件或发票文件夹。批量目录先盘点 PDF、PNG、JPG、JPEG、BMP、TIF、TIFF、WebP、XML、TXT 和 Markdown 文件，并单独记录 OFD 及其他不支持的文件。
 
-- Windows
-- Python 3.11+
-- 首次使用需搭建本地环境（见下文“首次安装”）
+`--input-dir` 只处理当前目录，不递归子目录。请求范围包含子目录时，对每个含支持文件的目录分别执行，持续写入同一台账，最后汇总所有运行结果。不得把子目录或不支持的文件静默算作已处理。
 
-## 首次安装
+读取 `config/user_settings.local.yaml` 中的 `draft_ledger`。该文件不存在、保存路径失效或用户明确指定另一份台账时，取得用户提供的文件夹或 `.xlsx` 路径，并在下一步把它传给安装器创建或记录。不得把 skill 根目录的 `发票采集台账.xlsx` 当作工作台账，它只用于创建新台账。
 
-1. 询问用户台账保存位置：
+## 2. 准备环境
 
-   > 发票采集台账希望保存到哪个文件夹？也可以直接提供完整的 .xlsx 路径。
-
-2. 搭建本地环境并初始化台账（Windows PowerShell）：
-
-   ```powershell
-   python scripts\install_skill_env.py --ocr auto --ledger <文件夹或.xlsx路径>
-   ```
-
-   安装器创建项目 `.venv`，按电脑环境安装 GPU 或 CPU OCR 依赖，并把空白母版 `发票采集台账.xlsx` 复制到用户选择的位置。目标台账已存在时直接沿用，禁止覆盖。
-
-3. 环境、模板或 OCR 异常时运行修复：
-
-   ```powershell
-   .\.venv\Scripts\python.exe scripts\fp_doctor.py
-   ```
-
-## 台账规则
-
-- 先读取 `config/user_settings.local.yaml` 的 `draft_ledger`。
-- 已保存的台账存在时持续使用该文件。
-- 配置缺失或路径失效时重新询问用户，禁止自行选择默认位置。
-- 根目录 `发票采集台账.xlsx` 只作为空白母版；新目标不存在时复制母版，目标已存在时先做兼容性检查。
-- 每次运行只追加新行并跳过疑似重复，禁止覆盖、清空或替换已有数据。
-- 禁止使用 `--replace-existing` 和 `--update-existing`。
-
-首次写入前执行兼容性检查：
+先判断输入是否需要 OCR。已有 `.venv` 时直接检查，不重复安装：
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --check-only --input-dir <发票目录> --draft-ledger <台账.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output
+# 只处理原始文本型 PDF、XML、TXT 或 Markdown
+.\.venv\Scripts\python.exe scripts\fp_doctor.py --no-ocr
+
+# 输入包含图片、扫描件或没有文本层的 PDF
+.\.venv\Scripts\python.exe scripts\fp_doctor.py
 ```
 
-## 运行
+只处理文本型文件时，检查结果不能是 `blocked`。需要 OCR 时，结果必须确认 `paddle` 和 `paddleocr` 均已安装；`text_only_ready` 表示只能处理文本型文件，不能继续执行 OCR。
 
-单个文件：
+`.venv` 不存在、检查结果为 `blocked`，或 OCR 检查结果为 `text_only_ready` 时，根据输入安装：
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input <发票文件> --draft-ledger <台账.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output --json-output summary
+# 原始文本型 PDF、XML、TXT 或 Markdown，不安装 OCR
+python scripts\install_skill_env.py --ocr none --ledger <文件夹或台账.xlsx>
+
+# 图片、扫描件或没有文本层的 PDF，电脑有 NVIDIA GPU
+python scripts\install_skill_env.py --ocr auto --ledger <文件夹或台账.xlsx>
+
+# 仅限无 GPU 时偶尔处理少量图片型特殊票据
+python scripts\install_skill_env.py --ocr cpu --ledger <文件夹或台账.xlsx>
 ```
 
-整个文件夹：
+环境已经可用、只需创建或切换台账时，运行 `python scripts\install_skill_env.py --ocr none --ledger <文件夹或台账.xlsx>`，避免重复安装 OCR。
+
+需要 OCR、电脑没有 NVIDIA GPU 且文件数量较多时，停止安装 CPU OCR，请用户改用原始文本型 PDF 或有 GPU 的电脑。安装完成后重新运行对应检查；失败时保留真实错误，不继续写入台账。
+
+## 3. 选择识别配置
+
+- 确认全部是原始文本型 PDF、XML、TXT 或 Markdown：使用 `config\runtime.yaml`。
+- 包含图片、扫描件、没有文本层的 PDF，或无法确认 PDF 是否有文本层：使用 `config\runtime_ocr_auto.yaml`。
+- 混合文件夹按需要 OCR 处理。
+
+## 4. 写入前检查
+
+先运行 `--check-only`。单个文件使用 `--input`，文件夹使用 `--input-dir`，两者只选一个。
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\fp_ledger.py --input-dir <发票目录> --draft-ledger <台账.xlsx> --config config\runtime_ocr_auto.yaml --output-dir output --json-output summary
+.\.venv\Scripts\python.exe scripts\fp_ledger.py <输入参数> --draft-ledger <台账.xlsx> --config <识别配置> --output-dir output --check-only
 ```
 
-OCR 任务使用 `config\runtime_ocr_auto.yaml`；仅处理文本层 PDF 时可以使用 `config\runtime.yaml`。
+只有返回码为 `0` 且摘要中的 `status` 为 `passed` 时才继续。此步骤不运行 OCR，也不修改 Excel。
 
-## 输出结果
+## 5. 执行识别和写入
 
-- 正常识别结果写入“发票信息采集”和“发票基础信息”工作表。
-- 待复核、未支持和未写入项写入“识别提示”工作表。
-- 正常回复只读取命令摘要和最终中文消息。
-- 仅在具体票据失败时读取对应证据文件。
+使用与检查阶段相同的输入、台账和配置，去掉 `--check-only`：
 
-## 使用边界
+```powershell
+.\.venv\Scripts\python.exe scripts\fp_ledger.py <输入参数> --draft-ledger <台账.xlsx> --config <识别配置> --output-dir output --json-output summary
+```
 
-- 暂不支持 OFD，要求用户提供 PDF 版式文件。
-- OCR 结果受图片清晰度、倾斜、遮挡和票面版式影响，低置信度内容会进入“识别提示”。
-- 本 skill 负责发票信息采集和台账整理，不代替税务申报、抵扣判断或票据真伪查验。
+不要把单张、单个目录成功当作整批完成。读取每次运行的最终 JSON 摘要并汇总，核对：
+
+- `status`
+- `input_count` 和 `recognized_invoices`
+- `added_rows` 和 `skipped_duplicate_rows`
+- `review_required_units`、`unmodeled_units` 和 `failed_units`
+- `output_workbook`
+
+## 6. 汇报结果
+
+向用户说明实际处理文件数、识别发票数、新增明细数、疑似重复数、待复核或失败数，以及目标 Excel 的完整路径。
+
+待复核、未支持和未写入原因以 Excel 的“识别提示”工作表为准。只有具体票据失败或需要定位时，才读取 `output\units` 下对应证据文件。命令失败、结果为 `partial` 或 `uncompleted` 时明确说明，不能声称全部完成。
