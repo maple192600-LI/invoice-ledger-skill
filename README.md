@@ -115,7 +115,7 @@
 
 ## 安装
 
-本 Skill 可在 Claude Code、Codex、Cursor、Gemini CLI 等 agent 中使用，完整步骤见 [references/installation.md](references/installation.md)。
+本 Skill 可在 Claude Code、Codex、Cursor、Gemini CLI 等 agent 中使用。
 
 简要流程：
 

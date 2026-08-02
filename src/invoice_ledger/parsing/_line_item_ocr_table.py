@@ -362,7 +362,7 @@ def _extract_digital_text_table_items(
         for y_key in sorted(y_row):
             row_compact = _compact_text("".join(y_row[y_key]))
             if "小计" in row_compact or "合计" in row_compact or "价税合计" in row_compact:
-                total_y = float(y_key)
+                total_y = min(span["y0"] for span in page_spans if round(span["y0"]) == y_key)
                 break
         if total_y is not None:
             heights = [span["y1"] - span["y0"] for span in page_spans if span["y1"] > span["y0"]]

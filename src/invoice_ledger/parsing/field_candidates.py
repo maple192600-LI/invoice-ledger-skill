@@ -16,8 +16,9 @@ from ..contracts import (
 from .invoice_identity import is_standard_digital_like
 from ..schema.schema_loader import load_schema
 
-from ._helpers import _add, _add_ocr_confidence_risks, _joined, _lines, _schema_section
+from ._helpers import _add, _add_ocr_confidence_risks, _compact_text, _joined, _lines, _schema_section
 from ._invoice_fields import _extract_dates, _extract_invoice_code, _extract_invoice_number, _extract_invoice_type
+from ._line_item_ocr_table import _read_pdf_spans
 from ._line_items import _extract_items_from_text_units, _item_tax_rates
 from ._parties import _extract_names_and_tax_ids, _party_geometry_rule, _party_values_from_geometry
 from ._totals import _extract_money_totals
@@ -227,6 +228,107 @@ def _normalize_invoice_type_from_context(
             )
 
 
+# 通用坐标兜底：当某 required 明细字段文本流完全没抓到时，按 span 级坐标
+# （标签右方 / 表头同列下方）补进 items payload。已有值不碰，真实发票不受影响。
+_ITEM_COORD_FALLBACK = {
+    "project_name": ("建筑项目名称", r"[一-鿿][一-鿿（）()A-Za-z0-9\-]{1,}", "below"),
+    "service_location": ("建筑服务发生地", r"[一-鿿][一-鿿市新区县镇]{1,}", "below"),
+}
+
+
+def _find_value_by_coordinate(spans, label, mode, pattern):
+    label_spans = [s for s in spans if label in _compact_text(s["text"])]
+    if not label_spans:
+        return None
+    lb = label_spans[0]
+    lb_x1 = lb["x1"]
+    lb_cy = (lb["y0"] + lb["y1"]) / 2
+    lb_cx = (lb["x0"] + lb["x1"]) / 2
+    if mode == "right":
+        cands = [
+            s for s in spans
+            if s["x0"] >= lb_x1 - 3
+            and abs((s["y0"] + s["y1"]) / 2 - lb_cy) < 16
+            and _compact_text(s["text"]) != _compact_text(lb["text"])
+        ]
+        cands.sort(key=lambda s: (s["x0"], abs((s["y0"] + s["y1"]) / 2 - lb_cy)))
+    else:
+        cands = [
+            s for s in spans
+            if (s["y0"] + s["y1"]) / 2 > lb_cy + 2
+            and abs((s["x0"] + s["x1"]) / 2 - lb_cx) < 55
+            and _compact_text(s["text"]) != _compact_text(lb["text"])
+        ]
+        cands.sort(key=lambda s: (s["y0"] + s["y1"]) / 2)
+    for s in cands:
+        text = s["text"].strip()
+        if not text or text.endswith(("：", ":")):
+            continue
+        if pattern and not re.fullmatch(pattern, text):
+            continue
+        return text
+    return None
+
+
+def _coordinate_fallback(text_units, fields, schema):
+    """文本流抓空的明细行级专属字段，按 span 级坐标补进 items payload。只增不减。"""
+    schema_fields = schema.get("fields", {})
+    if not isinstance(schema_fields, dict):
+        return
+    required = {
+        name for name, spec in schema_fields.items()
+        if isinstance(spec, dict) and spec.get("required") is True
+    }
+    # 早返回：该 schema 没有任何需要坐标兜底的字段时，不读 PDF（避免对非建筑发票白读）
+    if not (required & _ITEM_COORD_FALLBACK.keys()):
+        return
+    if not text_units.source_file:
+        return
+    try:
+        spans = _read_pdf_spans(text_units.source_file, list(text_units.page_range))
+    except Exception:
+        return
+    spans = [s for s in spans if s.get("text", "").strip()]
+    if not spans:
+        return
+    item_candidates = fields.get("items") or []
+    if not item_candidates:
+        return
+    for field_name, (label, pattern, mode) in _ITEM_COORD_FALLBACK.items():
+        if field_name not in required:
+            continue
+        value = _find_value_by_coordinate(spans, label, mode, pattern)
+        if not value:
+            continue
+        for candidate in item_candidates:
+            try:
+                payload = json.loads(candidate.value)
+            except json.JSONDecodeError:
+                continue
+            existing = payload.get(field_name)
+            if not existing:
+                payload[field_name] = value
+                candidate.value = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+            elif field_name == "service_location":
+                # 序列法在演示版可能把项目名拼进发生地；现值包含 project_name 时用坐标干净值替换。
+                project_name = payload.get("project_name")
+                if project_name and isinstance(existing, str) and existing.startswith(project_name) and value != existing:
+                    payload[field_name] = value
+                    candidate.value = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+
+def _fill_non_tax_totals(fields):
+    """不征税发票(所有明细不征税):金额=价税合计、税额=0。否则不征税发票卡 amount_total 缺致 review。"""
+    if fields.get("amount_total") or not fields.get("total_with_tax"):
+        return
+    rates = _item_tax_rates(fields)
+    if rates and all(r == "不征税" for r in rates):
+        total = fields["total_with_tax"][0].value
+        _add(fields, "amount_total", total, "不征税发票金额=价税合计", 0.9)
+        _add(fields, "tax_total", "0.00", "不征税发票税额0", 0.9)
+
+
 def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -> FieldCandidates:
     fields: dict[str, list[FieldCandidate]] = {}
     if decision.decision != SchemaDecisionStatus.MATCHED or not decision.schema_id:
@@ -269,6 +371,8 @@ def generate_field_candidates(text_units: TextUnits, decision: SchemaDecision) -
         _enrich_special_items(lines, fields, schema)
     _normalize_invoice_type_from_context(lines, fields, decision, schema)
     _add_ocr_confidence_risks(text_units, fields)
+    _coordinate_fallback(text_units, fields, schema)
+    _fill_non_tax_totals(fields)
 
     return FieldCandidates(
         invoice_unit_id=text_units.invoice_unit_id,

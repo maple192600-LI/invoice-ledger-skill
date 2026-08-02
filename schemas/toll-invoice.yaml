@@ -3,6 +3,25 @@ name: 通行费
 extends: standard-invoice
 special_invoice_type_value: 通行费
 
+variants:
+  - 征税通行费
+  - 不征税通行费
+
+default_variant: 征税通行费
+
+variant_rules:
+  不征税通行费:
+    keywords:
+      - 不征税
+
+variant_required_fields:
+  征税通行费:
+    - toll_variant
+    - vehicle_plate_no
+    - toll_entrance
+    - toll_exit
+    - passage_time
+
 match_rules:
   required_all:
     - 通行费
@@ -11,15 +30,15 @@ match_rules:
 
 fields:
   toll_variant:
-    required: true
+    required: false
   vehicle_plate_no:
-    required: true
+    required: false
   toll_entrance:
-    required: true
+    required: false
   toll_exit:
-    required: true
+    required: false
   passage_time:
-    required: true
+    required: false
 
 item_context_patterns:
   toll_variant:
@@ -45,12 +64,4 @@ item_context_patterns:
       - '(?:通行时间|通行日期)[：:]?\s*(\d{4}(?:年\d{1,2}月\d{1,2}日?|[-/]\d{1,2}[-/]\d{1,2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)'
       - '站出\s+(\d{4}-\d{1,2}-\d{1,2}\s+\d{1,2}:\d{2}:\d{2})'
 
-unverified_variants:
-  - 不征税通行费
-
-unverified_variant_rules:
-  不征税通行费:
-    required_all:
-      - ETC
-      - 充值
-      - 不征税
+unverified_variants: []

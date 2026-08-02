@@ -4,15 +4,13 @@ description: 本地识别 PDF、图片、扫描件和 XML 发票，持续追加�
 license: MIT
 compatibility: Windows、Python 3.11+、本地 OCR（PaddleOCR，可选 GPU），无需联网
 metadata:
-  version: "1.0.2"
+  version: "1.1.0"
   author: maple192600-LI
 ---
 
 # 发票台账本地化采集
 
 本 skill 在本机识别发票文件，把结果持续追加写入用户选择的同一份 Excel 发票采集台账。所有处理本地完成，不依赖在线 OCR 服务。
-
-详细安装步骤见 [references/installation.md](references/installation.md)。
 
 ## 适用场景
 
