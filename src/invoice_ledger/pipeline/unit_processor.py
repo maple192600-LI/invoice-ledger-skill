@@ -20,6 +20,7 @@ from ..contracts import (
     InvoiceSource,
     InvoiceUnit,
     OcrResult,
+    OcrStatus,
     RecognitionStatus,
     SchemaDecision,
     SchemaDecisionStatus,
@@ -143,6 +144,52 @@ def record_for_unprocessable(
     )
 
 
+def _ocr_disabled_result(unit: InvoiceUnit, provider: str = "unsupported") -> OcrResult:
+    return OcrResult(
+        invoice_unit_id=unit.invoice_unit_id,
+        status=OcrStatus.UNSUPPORTED,
+        provider=provider,
+        source_file=unit.source_file,
+        page_range=unit.page_range,
+        messages=["OCR 未运行：当前为预检或配置未启用 OCR。"],
+    )
+
+
+def _failed_unit_result(
+    unit: InvoiceUnit,
+    file_profile: FileProfile,
+    reason: str,
+    ocr_result: OcrResult | None = None,
+    selected_source: str = "none",
+) -> dict[str, Any]:
+    schema_decision = failed_decision(unit.invoice_unit_id, reason)
+    field_candidates = FieldCandidates(
+        invoice_unit_id=unit.invoice_unit_id,
+        schema_id="failed",
+        fields={},
+    )
+    invoice_record = record_for_unprocessable(
+        unit.invoice_unit_id,
+        unit.source_file,
+        unit.page_range,
+        RecognitionStatus.FAILED,
+        reason,
+    )
+    return {
+        "input": unit.source_file,
+        "file_profile": file_profile,
+        "invoice_unit": unit,
+        "invoice_units": [unit],
+        "text_units": None,
+        "schema_decision": schema_decision,
+        "field_candidates": field_candidates,
+        "invoice_record": invoice_record,
+        "ledger_rows": [],
+        "ocr_result": ocr_result,
+        "selected_source": selected_source,
+    }
+
+
 def process_invoice_unit(
     unit: InvoiceUnit,
     file_profile: FileProfile,
@@ -151,31 +198,44 @@ def process_invoice_unit(
     processed_at: str,
     pdf_context: PdfProcessingContext | None = None,
     preloaded_ocr_results: dict[str, OcrResult] | None = None,
+    source_mode: str | None = None,
+    allow_ocr: bool = True,
 ) -> dict[str, Any]:
     text_units = None
     ocr_result = None
     if file_profile.status != RecognitionStatus.READY or unit.status != RecognitionStatus.READY:
         reason = "; ".join(unit.messages or file_profile.messages)
-        schema_decision = failed_decision(unit.invoice_unit_id, reason)
-        field_candidates = FieldCandidates(
-            invoice_unit_id=unit.invoice_unit_id,
-            schema_id="failed",
-            fields={},
-        )
-        invoice_record = record_for_unprocessable(
-            unit.invoice_unit_id,
-            unit.source_file,
-            unit.page_range,
-            RecognitionStatus.FAILED,
-            reason,
-        )
-        ledger_rows = []
+        return _failed_unit_result(unit, file_profile, reason)
     else:
         try:
-            if unit.unit_type in {"image", "pdf_ocr_page"}:
-                if preloaded_ocr_results and unit.invoice_unit_id in preloaded_ocr_results:
-                    ocr_result = preloaded_ocr_results[unit.invoice_unit_id]
+            use_ocr = source_mode == "ocr" or (
+                source_mode is None and unit.unit_type in {"image", "pdf_ocr_page"}
+            )
+            if use_ocr:
+                if preloaded_ocr_results is not None:
+                    ocr_result = preloaded_ocr_results.get(unit.invoice_unit_id)
+                    if ocr_result is None:
+                        ocr_result = OcrResult(
+                            invoice_unit_id=unit.invoice_unit_id,
+                            status=OcrStatus.FAILED,
+                            provider=str(runtime_config.get("ocr", {}).get("provider", "unknown")),
+                            source_file=unit.source_file,
+                            page_range=unit.page_range,
+                            messages=["OCR 批次未返回该处理单元的结果。"],
+                        )
                     text_units = text_units_from_ocr_result(unit, ocr_result)
+                elif not allow_ocr:
+                    ocr_result = _ocr_disabled_result(
+                        unit,
+                        str(runtime_config.get("ocr", {}).get("provider", "unsupported")),
+                    )
+                    return _failed_unit_result(
+                        unit,
+                        file_profile,
+                        "; ".join(ocr_result.messages),
+                        ocr_result=ocr_result,
+                        selected_source="none",
+                    )
                 else:
                     text_units, ocr_result = extract_ocr_text_units(
                         unit,
@@ -201,20 +261,13 @@ def process_invoice_unit(
             possible_ocr_result = exc.details.get("ocr_result")
             if possible_ocr_result is not None:
                 ocr_result = possible_ocr_result
-            schema_decision = failed_decision(unit.invoice_unit_id, exc.message)
-            field_candidates = FieldCandidates(
-                invoice_unit_id=unit.invoice_unit_id,
-                schema_id="failed",
-                fields={},
-            )
-            invoice_record = record_for_unprocessable(
-                unit.invoice_unit_id,
-                unit.source_file,
-                unit.page_range,
-                RecognitionStatus.FAILED,
+            return _failed_unit_result(
+                unit,
+                file_profile,
                 exc.message,
+                ocr_result=ocr_result,
+                selected_source="ocr" if text_units is not None and text_units.source == "ocr" else "none",
             )
-            ledger_rows = []
 
     return {
         "input": unit.source_file,
@@ -227,6 +280,7 @@ def process_invoice_unit(
         "invoice_record": invoice_record,
         "ledger_rows": ledger_rows,
         "ocr_result": ocr_result,
+        "selected_source": text_units.source if text_units is not None else "none",
     }
 
 
@@ -269,7 +323,107 @@ def _direct_unit_result(
         "invoice_record": record,
         "ledger_rows": ledger_rows,
         "ocr_result": None,
+        "selected_source": "structured",
+        "fallback_attempted": False,
+        "fallback_reason": None,
+        "direct_status": record.quality.status.value,
+        "ocr_status": None,
+        "selection_reason": "structured_direct",
     }
+
+
+_STATUS_RANK = {
+    RecognitionStatus.READY: 3,
+    RecognitionStatus.REVIEW_REQUIRED: 2,
+    RecognitionStatus.UNMODELED: 1,
+    RecognitionStatus.FAILED: 0,
+}
+
+
+def _status_rank(status: RecognitionStatus) -> int:
+    return _STATUS_RANK.get(status, -1)
+
+
+def _explicitly_unmodeled(result: dict[str, Any]) -> bool:
+    decision = result.get("schema_decision")
+    if decision is None or decision.decision != SchemaDecisionStatus.UNMODELED:
+        return False
+    reasons = " ".join(decision.reason or [])
+    return any(term in reasons for term in ("未建模", "不支持", "未支持", "当前票种"))
+
+
+def _needs_ocr_fallback(result: dict[str, Any], unit: InvoiceUnit) -> bool:
+    if unit.unit_type != "pdf_page":
+        return False
+    status = result["invoice_record"].quality.status
+    if status == RecognitionStatus.READY or _explicitly_unmodeled(result):
+        return False
+    return True
+
+
+def _ocr_unit(unit: InvoiceUnit) -> InvoiceUnit:
+    if unit.unit_type == "pdf_page":
+        return unit.model_copy(update={"unit_type": "pdf_ocr_page"})
+    return unit
+
+
+def _select_recognition_result(
+    direct_result: dict[str, Any] | None,
+    ocr_result: dict[str, Any] | None,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
+    if direct_result is None:
+        selected = ocr_result
+        if selected is None:
+            raise ValueError("至少需要一个识别结果。")
+        selected = dict(selected)
+        selected.update(
+            {
+                "selected_source": "ocr",
+                "fallback_attempted": False,
+                "fallback_reason": fallback_reason or "ocr_required",
+                "direct_status": None,
+                "ocr_status": selected["invoice_record"].quality.status.value,
+                "selection_reason": "ocr_required",
+            }
+        )
+        return selected
+
+    if ocr_result is None:
+        selected = dict(direct_result)
+        selected.update(
+            {
+                "selected_source": selected.get("selected_source", "pdf_text"),
+                "fallback_attempted": False,
+                "fallback_reason": fallback_reason,
+                "direct_status": selected["invoice_record"].quality.status.value,
+                "ocr_status": None,
+                "selection_reason": "direct_ready_or_ocr_not_available",
+            }
+        )
+        return selected
+
+    direct_status = direct_result["invoice_record"].quality.status
+    ocr_status = ocr_result["invoice_record"].quality.status
+    # 平级时保留文本结果，避免两次识别的字段被隐式拼接。
+    choose_ocr = _status_rank(ocr_status) > _status_rank(direct_status)
+    selected = ocr_result if choose_ocr else direct_result
+    selected = dict(selected)
+    if not choose_ocr:
+        selected["ocr_result"] = ocr_result.get("ocr_result")
+    selected.update(
+        {
+            "selected_source": "ocr" if choose_ocr else direct_result.get("selected_source", "pdf_text"),
+            "fallback_attempted": True,
+            "fallback_reason": fallback_reason or "direct_not_ready",
+            "direct_status": direct_status.value,
+            "ocr_status": ocr_status.value,
+            "selection_reason": (
+                "ocr_status_higher" if choose_ocr else "same_or_higher_direct_status"
+            ),
+        }
+    )
+    return selected
 
 
 def _process_invoice_input(
@@ -277,6 +431,7 @@ def _process_invoice_input(
     runtime_config: dict[str, Any],
     run_id: str,
     processed_at: str,
+    allow_ocr: bool = True,
 ) -> dict[str, Any]:
     ocr_enabled = runtime_config.get("ocr", {}).get("enabled") is True
     suffix = Path(input_path).suffix.lower()
@@ -328,23 +483,79 @@ def _process_invoice_input(
                     "unit_results": [unit_result],
                 }
 
-        preloaded_ocr_results = _preload_ocr_results(
-            invoice_units,
-            runtime_config,
-            pdf_context=pdf_context,
-        )
-        page_results = [
-            process_invoice_unit(
+        direct_results: dict[str, dict[str, Any]] = {}
+        ocr_candidates: list[InvoiceUnit] = []
+        for unit in invoice_units:
+            if unit.unit_type in {"image", "pdf_ocr_page"}:
+                if allow_ocr and ocr_enabled:
+                    ocr_candidates.append(unit)
+                else:
+                    direct_results[unit.invoice_unit_id] = process_invoice_unit(
+                        unit,
+                        file_profile,
+                        runtime_config,
+                        run_id,
+                        processed_at,
+                        pdf_context=pdf_context,
+                        allow_ocr=False,
+                    )
+                continue
+
+            direct_result = process_invoice_unit(
                 unit,
                 file_profile,
                 runtime_config,
                 run_id,
                 processed_at,
                 pdf_context=pdf_context,
-                preloaded_ocr_results=preloaded_ocr_results,
+                allow_ocr=allow_ocr,
             )
-            for unit in invoice_units
-        ]
+            direct_results[unit.invoice_unit_id] = direct_result
+            if _needs_ocr_fallback(direct_result, unit):
+                if allow_ocr and ocr_enabled:
+                    ocr_candidates.append(_ocr_unit(unit))
+                else:
+                    direct_result["fallback_reason"] = "direct_not_ready"
+
+        preloaded_ocr_results = _preload_ocr_results(
+            ocr_candidates,
+            runtime_config,
+            pdf_context=pdf_context,
+        ) if allow_ocr and ocr_candidates else {}
+        ocr_candidate_ids = {unit.invoice_unit_id for unit in ocr_candidates}
+        page_results: list[dict[str, Any]] = []
+        for unit in invoice_units:
+            direct_result = direct_results.get(unit.invoice_unit_id)
+            ocr_unit = _ocr_unit(unit)
+            if unit.invoice_unit_id in ocr_candidate_ids:
+                ocr_result = process_invoice_unit(
+                    ocr_unit,
+                    file_profile,
+                    runtime_config,
+                    run_id,
+                    processed_at,
+                    pdf_context=pdf_context,
+                    preloaded_ocr_results=preloaded_ocr_results,
+                    source_mode="ocr",
+                    allow_ocr=allow_ocr,
+                )
+                page_results.append(
+                    _select_recognition_result(
+                        direct_result,
+                        ocr_result,
+                        fallback_reason=(
+                            "ocr_required" if direct_result is None else "direct_not_ready"
+                        ),
+                    )
+                )
+            elif direct_result is not None:
+                page_results.append(
+                    _select_recognition_result(
+                        direct_result,
+                        None,
+                        fallback_reason=direct_result.get("fallback_reason"),
+                    )
+                )
         invoice_units = _merge_confirmed_multipage_units(file_profile, page_results)
         page_results_by_id = {
             result["invoice_unit"].invoice_unit_id: result
@@ -359,6 +570,7 @@ def _process_invoice_input(
                 run_id,
                 processed_at,
                 pdf_context=pdf_context,
+                allow_ocr=allow_ocr,
             )
             for unit in invoice_units
         ]
@@ -375,9 +587,16 @@ def process_invoice_input(
     runtime_config: dict[str, Any],
     run_id: str,
     processed_at: str,
+    allow_ocr: bool = True,
 ) -> dict[str, Any]:
     try:
-        return _process_invoice_input(input_path, runtime_config, run_id, processed_at)
+        return _process_invoice_input(
+            input_path,
+            runtime_config,
+            run_id,
+            processed_at,
+            allow_ocr=allow_ocr,
+        )
     except (OSError, UnicodeError, ParseError, fitz.FileDataError) as exc:
         reason = f"读取输入文件失败（{type(exc).__name__}）：{exc}"
         file_profile = FileProfile(
@@ -399,6 +618,7 @@ def process_invoice_input(
                     runtime_config,
                     run_id,
                     processed_at,
+                    allow_ocr=allow_ocr,
                 )
                 for unit in invoice_units
             ],
@@ -415,4 +635,6 @@ def _preload_ocr_results(
         for unit in invoice_units
         if unit.status == RecognitionStatus.READY and unit.unit_type in {"image", "pdf_ocr_page"}
     ]
+    if not ready_ocr_units:
+        return {}
     return run_ocr_batch(ready_ocr_units, runtime_config, pdf_context=pdf_context)

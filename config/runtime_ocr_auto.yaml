@@ -1,2 +1,2 @@
 stage: stage_two_ocr_auto
-description: Placeholder config path intercepted by fp_ledger.py. It selects runtime_ocr_gpu.yaml when nvidia-smi reports an NVIDIA GPU, otherwise runtime_ocr_cpu.yaml.
+description: Normal mixed-input entry point. The pipeline parses structured data and text layers first, then runs OCR only for pages with no usable text or a direct result that needs fallback; GPU/CPU is selected automatically.

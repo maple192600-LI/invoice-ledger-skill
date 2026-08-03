@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -43,7 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
         required=False,
         help="Working ledger Excel workbook path. The file is written in place unless --copy-output is used.",
     )
-    parser.add_argument("--config", required=False, help="Runtime config YAML path.")
+    parser.add_argument(
+        "--config",
+        required=False,
+        default=AUTO_OCR_CONFIG,
+        help="Runtime config YAML path. Defaults to automatic OCR routing.",
+    )
     parser.add_argument("--target-sheet", required=False, help="Target worksheet name.")
     parser.add_argument("--output-dir", required=False, help="Directory for evidence and JSON output.")
     parser.add_argument(
@@ -222,6 +228,167 @@ def _input_paths(args: argparse.Namespace) -> list[Path]:
     )
 
 
+def _ocr_runtime_available() -> bool:
+    return (
+        importlib.util.find_spec("paddle") is not None
+        and importlib.util.find_spec("paddleocr") is not None
+    )
+
+
+def _preflight_routes(
+    input_paths: list[Path],
+    runtime_config: dict[str, Any],
+    run_id: str,
+    processed_at: str,
+) -> dict[str, Any]:
+    results = [
+        process_invoice_input(
+            path,
+            runtime_config,
+            run_id,
+            processed_at,
+            allow_ocr=False,
+        )
+        for path in input_paths
+    ]
+    direct_files = 0
+    direct_ready_files = 0
+    structured_files = 0
+    ocr_required_files = 0
+    ocr_fallback_files = 0
+    unsupported_files = 0
+    ocr_required_pages = 0
+    for result in results:
+        unit_results = result["unit_results"]
+        if not unit_results:
+            unsupported_files += 1
+            continue
+        file_has_direct = False
+        file_has_ready_direct = False
+        file_has_structured = False
+        file_has_ocr_required = False
+        file_has_ocr_fallback = False
+        file_has_unsupported = False
+        for unit_result in unit_results:
+            source = unit_result.get("selected_source")
+            status = unit_result["invoice_record"].quality.status
+            unit = unit_result["invoice_unit"]
+            if source == "structured":
+                file_has_structured = True
+            elif source in {"pdf_text", "text_file"}:
+                file_has_direct = True
+                if status == RecognitionStatus.READY:
+                    file_has_ready_direct = True
+            elif unit.unit_type in {"image", "pdf_ocr_page"}:
+                file_has_ocr_required = True
+                ocr_required_pages += len(unit.page_range) or 1
+            if unit_result.get("fallback_attempted") or unit_result.get("fallback_reason") == "direct_not_ready":
+                file_has_ocr_fallback = True
+                ocr_required_pages += len(unit.page_range) or 1
+            if unit_result["invoice_record"].quality.status in {
+                RecognitionStatus.UNMODELED,
+                RecognitionStatus.FAILED,
+            } and (
+                (
+                    source == "none"
+                    and unit.unit_type not in {"image", "pdf_ocr_page"}
+                    and unit_result.get("fallback_reason") != "direct_not_ready"
+                )
+                or any(
+                    term in " ".join(unit_result["schema_decision"].reason or [])
+                    for term in ("未建模", "不支持", "未支持", "当前票种")
+                )
+            ):
+                file_has_unsupported = True
+        direct_files += int(file_has_direct)
+        direct_ready_files += int(file_has_ready_direct)
+        structured_files += int(file_has_structured)
+        ocr_required_files += int(file_has_ocr_required)
+        ocr_fallback_files += int(file_has_ocr_fallback)
+        unsupported_files += int(file_has_unsupported)
+    ocr_enabled = runtime_config.get("ocr", {}).get("enabled") is True
+    selected_device = runtime_config.get("ocr", {}).get("device")
+    if ocr_required_pages and ocr_enabled and not _ocr_runtime_available():
+        status = "ocr_required"
+        return_code = 3
+        message = "发现需要 OCR 的文件，但 OCR 环境尚未安装。"
+    elif ocr_required_pages and not ocr_enabled:
+        status = "blocked"
+        return_code = 2
+        message = "发现需要 OCR 的文件，但当前配置未启用 OCR。"
+    else:
+        status = "passed"
+        return_code = 0
+        message = "预检完成：已按文件和页面确定直接解析与 OCR 回退路径，未运行 OCR，未修改 Excel。"
+    return {
+        "status": status,
+        "return_code": return_code,
+        "check_only": True,
+        "direct_files": direct_files,
+        "direct_ready_files": direct_ready_files,
+        "structured_files": structured_files,
+        "ocr_required_files": ocr_required_files,
+        "ocr_fallback_files": ocr_fallback_files,
+        "unsupported_files": unsupported_files,
+        "ocr_required_pages": ocr_required_pages,
+        "ocr_enabled": ocr_enabled,
+        "ocr_environment_available": _ocr_runtime_available() if ocr_required_pages else None,
+        "selected_ocr_device": selected_device,
+        "message": message,
+    }
+
+
+def _runtime_route_summary(unit_results: list[dict[str, Any]]) -> dict[str, int]:
+    file_routes: dict[str, dict[str, bool | int]] = {}
+    for result in unit_results:
+        source_file = str(result.get("input") or result["invoice_unit"].source_file)
+        route = file_routes.setdefault(
+            source_file,
+            {
+                "direct": False,
+                "direct_ready": False,
+                "structured": False,
+                "ocr_required": False,
+                "ocr_fallback": False,
+                "ocr_improved": False,
+                "ocr_failed": False,
+                "ocr_pages": 0,
+            },
+        )
+        source = result.get("selected_source")
+        status = result["invoice_record"].quality.status
+        if source == "structured":
+            route["structured"] = True
+        elif source in {"pdf_text", "text_file"} or result.get("direct_status") is not None:
+            route["direct"] = True
+            route["direct_ready"] = bool(route["direct_ready"] or (
+                result.get("direct_status") == RecognitionStatus.READY.value
+                or (result.get("direct_status") is None and status == RecognitionStatus.READY)
+            ))
+        if result.get("fallback_reason") == "ocr_required":
+            route["ocr_required"] = True
+            route["ocr_pages"] += len(result["invoice_unit"].page_range) or 1
+            if result.get("ocr_status") in {"failed", "unsupported"}:
+                route["ocr_failed"] = True
+        if result.get("fallback_attempted"):
+            route["ocr_fallback"] = True
+            route["ocr_pages"] += len(result["invoice_unit"].page_range) or 1
+            if result.get("selection_reason") == "ocr_status_higher":
+                route["ocr_improved"] = True
+            if result.get("ocr_status") in {"failed", "unsupported"}:
+                route["ocr_failed"] = True
+    return {
+        "direct_files": sum(bool(route["direct"]) for route in file_routes.values()),
+        "direct_ready_files": sum(bool(route["direct_ready"]) for route in file_routes.values()),
+        "structured_files": sum(bool(route["structured"]) for route in file_routes.values()),
+        "ocr_required_files": sum(bool(route["ocr_required"]) for route in file_routes.values()),
+        "ocr_fallback_files": sum(bool(route["ocr_fallback"]) for route in file_routes.values()),
+        "ocr_improved_files": sum(bool(route["ocr_improved"]) for route in file_routes.values()),
+        "ocr_failed_files": sum(bool(route["ocr_failed"]) for route in file_routes.values()),
+        "ocr_required_pages": sum(int(route["ocr_pages"]) for route in file_routes.values()),
+    }
+
+
 def _payload_status(run_summary: RunSummary) -> str:
     blocked_units = run_summary.failed_units + run_summary.unmodeled_units
     if blocked_units == 0:
@@ -346,20 +513,20 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         print("No supported invoice input files found in input directory.", file=sys.stderr)
         return 2
     if args.check_only:
-        payload = {
-            "status": "passed",
-            "check_only": True,
-            "input": input_source,
-            "input_count": len(input_paths),
-            "draft_ledger": args.draft_ledger,
-            "target_sheet": args.target_sheet,
-            "output_dir": str(output_dir),
-            "template_profile": template_profile,
-            "message": "Check passed: arguments, input paths, config, and workbook/template compatibility are valid. OCR was not run and Excel was not modified.",
-        }
+        payload = _preflight_routes(input_paths, runtime_config, run_id, processed_at)
+        payload.update(
+            {
+                "input": input_source,
+                "input_count": len(input_paths),
+                "draft_ledger": args.draft_ledger,
+                "target_sheet": args.target_sheet,
+                "output_dir": str(output_dir),
+                "template_profile": template_profile,
+            }
+        )
         print(json.dumps(payload, ensure_ascii=False))
-        print("检查通过：参数、输入、配置和工作台账模板兼容性可用。未运行 OCR，未修改 Excel。", file=sys.stderr)
-        return 0
+        print(payload["message"], file=sys.stderr)
+        return int(payload["return_code"])
     input_results = [
         process_invoice_input(input_path, runtime_config, run_id, processed_at)
         for input_path in input_paths
@@ -369,6 +536,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         for input_result in input_results
         for unit_result in input_result["unit_results"]
     ]
+    route_summary = _runtime_route_summary(unit_results)
     first_input_result = input_results[0]
     first_unit_result = unit_results[0]
     file_profile = first_input_result["file_profile"]
@@ -441,7 +609,11 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
     payload_status = _payload_status(run_summary)
     user_message = _user_message(run_summary, output_workbook)
 
-    _write_json_artifact(output_dir, "run_summary.json", run_summary)
+    _write_json_artifact(
+        output_dir,
+        "run_summary.json",
+        {**run_summary.model_dump(mode="json"), **route_summary},
+    )
     _write_json_artifact(output_dir, "write_result.json", write_result)
 
     if args.save_evidence == "failed":
@@ -491,10 +663,16 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         "run_summary": run_summary.model_dump(mode="json"),
         "output_workbook": output_workbook,
         "user_message": user_message,
+        "route_summary": route_summary,
         "results": [
             {
                 "input": result["input"],
                 "status": result["invoice_record"].quality.status.value,
+                "selected_source": result.get("selected_source"),
+                "fallback_reason": result.get("fallback_reason"),
+                "direct_status": result.get("direct_status"),
+                "ocr_status": result.get("ocr_status"),
+                "selection_reason": result.get("selection_reason"),
                 "invoice_unit": result["invoice_unit"].model_dump(mode="json"),
                 "ledger_row_count": len(result["ledger_rows"]),
                 "invoice_record": result["invoice_record"].model_dump(mode="json"),
@@ -523,6 +701,7 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         "save_evidence": args.save_evidence,
         "user_message": user_message,
         "write_message_count": len(write_result.messages),
+        **route_summary,
     }
     payload = full_payload if args.json_output == "full" else summary_payload
     print(json.dumps(payload, ensure_ascii=False))
