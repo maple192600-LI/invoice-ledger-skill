@@ -10,8 +10,8 @@ description: 批量读取本地 PDF、图片、XML 等发票文件，提取票�
 ## 执行原则
 
 - 以本 `SKILL.md` 所在目录为 skill 根目录，所有相对路径和命令都从该目录执行。
-- 优先使用数电发票原始文本型 PDF，不要先转成图片。图片、扫描件和没有文本层的 PDF 才使用 OCR。
-- 无 NVIDIA GPU 时不要对大量图片型发票运行 CPU OCR。传统出租车发票、定额发票等少量特殊票据可以使用 CPU OCR。
+- 优先使用数电发票原始文本型 PDF，不要先转成图片。系统先解析已有文本，只有没有文本或直接识别未通过的页面才会自动回退 OCR。
+- 系统按文件和页面分流，同一目录只需执行一次。文本识别通过的页面不会调用 OCR。
 - 台账只追加新数据并跳过疑似重复。禁止覆盖、清空或替换已有数据，禁止使用 `--replace-existing` 和 `--update-existing`。
 - 没有证据的字段保持为空或待复核，不猜测发票号码、购销双方、金额、税额和商品明细。
 - 不支持 OFD。要求用户从电子税务局税务数字账户下载 PDF 版式文件。
@@ -26,40 +26,31 @@ description: 批量读取本地 PDF、图片、XML 等发票文件，提取票�
 
 ## 2. 准备环境
 
-先判断输入是否需要 OCR。已有 `.venv` 时直接检查，不重复安装：
+已有 `.venv` 时直接检查，不重复安装：
 
 ```powershell
 # 只处理原始文本型 PDF、XML、TXT 或 Markdown
 .\.venv\Scripts\python.exe scripts\fp_doctor.py --no-ocr
 
-# 输入包含图片、扫描件或没有文本层的 PDF
-.\.venv\Scripts\python.exe scripts\fp_doctor.py
+# 发现 OCR 页面后再运行完整 OCR 环境检查
+# .\.venv\Scripts\python.exe scripts\fp_doctor.py
 ```
 
-只处理文本型文件时，检查结果不能是 `blocked`。需要 OCR 时，结果必须确认 `paddle` 和 `paddleocr` 均已安装；`text_only_ready` 表示只能处理文本型文件，不能继续执行 OCR。
+只处理文本型文件时，检查结果不能是 `blocked`。OCR 环境由预检统计决定，避免为纯文本批次安装 OCR。
 
-`.venv` 不存在、检查结果为 `blocked`，或 OCR 检查结果为 `text_only_ready` 时，根据输入安装：
+`.venv` 不存在或检查结果为 `blocked` 时，先准备基础环境：
 
 ```powershell
-# 原始文本型 PDF、XML、TXT 或 Markdown，不安装 OCR
 python scripts\install_skill_env.py --ocr none --ledger <文件夹或台账.xlsx>
-
-# 图片、扫描件或没有文本层的 PDF，电脑有 NVIDIA GPU
-python scripts\install_skill_env.py --ocr auto --ledger <文件夹或台账.xlsx>
-
-# 仅限无 GPU 时偶尔处理少量图片型特殊票据
-python scripts\install_skill_env.py --ocr cpu --ledger <文件夹或台账.xlsx>
 ```
 
 环境已经可用、只需创建或切换台账时，运行 `python scripts\install_skill_env.py --ocr none --ledger <文件夹或台账.xlsx>`，避免重复安装 OCR。
 
-需要 OCR、电脑没有 NVIDIA GPU 且文件数量较多时，停止安装 CPU OCR，请用户改用原始文本型 PDF 或有 GPU 的电脑。安装完成后重新运行对应检查；失败时保留真实错误，不继续写入台账。
+预检返回码为 `3` 时，运行 `python scripts\install_skill_env.py --ocr auto --ledger <文件夹或台账.xlsx>`；安装器自动选择 GPU 或 CPU 依赖，不由执行者判断数量或设备。安装完成后重新运行预检。只要 `ocr_required_pages` 大于 `0`，就运行完整的 `fp_doctor.py`，确认 `paddle` 和 `paddleocr` 均可用；`text_only_ready` 和 `blocked` 都不能继续执行 OCR。失败时保留真实错误，不继续写入台账。
 
 ## 3. 选择识别配置
 
-- 确认全部是原始文本型 PDF、XML、TXT 或 Markdown：使用 `config\runtime.yaml`。
-- 包含图片、扫描件、没有文本层的 PDF，或无法确认 PDF 是否有文本层：使用 `config\runtime_ocr_auto.yaml`。
-- 混合文件夹按需要 OCR 处理。
+普通识别统一使用 `config\runtime_ocr_auto.yaml`。它只在实际需要时调用 OCR，并自动选择 GPU 或 CPU。`runtime.yaml`、`runtime_ocr_cpu.yaml`、`runtime_ocr_gpu.yaml` 仅用于明确的调试或设备固定场景。
 
 ## 4. 写入前检查
 
@@ -69,7 +60,7 @@ python scripts\install_skill_env.py --ocr cpu --ledger <文件夹或台账.xlsx>
 .\.venv\Scripts\python.exe scripts\fp_ledger.py <输入参数> --draft-ledger <台账.xlsx> --config <识别配置> --output-dir output --check-only
 ```
 
-只有返回码为 `0` 且摘要中的 `status` 为 `passed` 时才继续。此步骤不运行 OCR，也不修改 Excel。
+预检会实际尝试原生文本识别，并输出 `direct_files`、`structured_files`、`ocr_required_files`、`ocr_fallback_files`、`unsupported_files` 和 `ocr_required_pages`。它不运行 OCR，也不修改 Excel。返回码为 `0` 才继续；返回码为 `3` 表示需要先准备 OCR 环境；返回码为 `2` 表示参数、台账、配置或输入存在阻断。
 
 ## 5. 执行识别和写入
 

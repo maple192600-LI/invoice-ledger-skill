@@ -84,21 +84,18 @@ def _overall_pdf_quality(pages: list[PdfPageProfile]) -> TextLayerQuality:
     return TextLayerQuality.UNKNOWN
 
 
-def _page_profile(page_number: int, text_length: int, ocr_enabled: bool) -> PdfPageProfile:
+def _page_profile(page_number: int, text_length: int, ocr_enabled: bool = False) -> PdfPageProfile:
     quality = _page_quality(text_length)
-    ocr_required = quality != TextLayerQuality.GOOD
-    status = RecognitionStatus.READY
-    messages: list[str] = []
-    if ocr_required and not ocr_enabled:
-        status = RecognitionStatus.FAILED
-        messages = ["该 PDF 页面需要 OCR，当前配置未启用 OCR。"]
+    # 文本层质量只能决定初始路径。短文本先走原生解析，解析失败后再由
+    # pipeline 决定是否回退 OCR；只有完全没有文本的页面才是 OCR 必需。
+    ocr_required = quality == TextLayerQuality.NONE
     return PdfPageProfile(
         page=page_number,
         has_text_layer=text_length > 0,
         text_layer_quality=quality,
         ocr_required=ocr_required,
-        status=status,
-        messages=messages,
+        status=RecognitionStatus.READY,
+        messages=[],
     )
 
 
@@ -123,11 +120,7 @@ def _profile_pdf(
     has_text = any(page.has_text_layer for page in page_profiles)
     overall_quality = _overall_pdf_quality(page_profiles)
     needs_ocr = any(page.ocr_required for page in page_profiles)
-    has_ready_page = any(page.status == RecognitionStatus.READY for page in page_profiles)
-
     if page_count != 1:
-        status = RecognitionStatus.READY if has_ready_page else RecognitionStatus.FAILED
-        messages = [] if has_ready_page else ["多页 PDF 中所有页面都需要 OCR，当前配置未启用 OCR。"]
         return FileProfile(
             input_file=str(path),
             file_type=FileType.PDF,
@@ -135,14 +128,13 @@ def _profile_pdf(
             has_text_layer=has_text,
             text_layer_quality=overall_quality,
             ocr_required=needs_ocr,
-            unit_strategy="split_by_page" if has_ready_page else "unsupported",
-            status=status,
-            messages=messages,
+            unit_strategy="split_by_page",
+            status=RecognitionStatus.READY if page_count else RecognitionStatus.FAILED,
+            messages=[] if page_count else ["PDF 不包含可处理页面。"],
             pages=page_profiles,
         )
 
     if not has_text:
-        status = RecognitionStatus.READY if ocr_enabled else RecognitionStatus.FAILED
         return FileProfile(
             input_file=str(path),
             file_type=FileType.PDF,
@@ -150,26 +142,23 @@ def _profile_pdf(
             has_text_layer=False,
             text_layer_quality=TextLayerQuality.NONE,
             ocr_required=True,
-            unit_strategy="single" if ocr_enabled else "unsupported",
-            status=status,
-            messages=[] if ocr_enabled else ["PDF 无可用文本层，当前配置未启用 OCR。"],
+            unit_strategy="single",
+            status=RecognitionStatus.READY,
+            messages=[],
             pages=page_profiles,
         )
 
     quality = overall_quality
-    ocr_required = quality == TextLayerQuality.POOR
-    status = RecognitionStatus.READY if quality == TextLayerQuality.GOOD or ocr_enabled else RecognitionStatus.FAILED
-    messages = [] if status == RecognitionStatus.READY else ["PDF 文本层质量不足，当前配置未启用 OCR。"]
     return FileProfile(
         input_file=str(path),
         file_type=FileType.PDF,
         page_count=page_count,
         has_text_layer=True,
         text_layer_quality=quality,
-        ocr_required=ocr_required,
-        unit_strategy="single" if status == RecognitionStatus.READY else "unsupported",
-        status=status,
-        messages=messages,
+        ocr_required=False,
+        unit_strategy="single",
+        status=RecognitionStatus.READY,
+        messages=[],
         pages=page_profiles,
     )
 
@@ -202,7 +191,6 @@ def profile_input_file(
     if file_type == FileType.PDF:
         return _profile_pdf(input_path, ocr_enabled=ocr_enabled, pdf_context=pdf_context)
     if file_type == FileType.IMAGE:
-        status = RecognitionStatus.READY if ocr_enabled else RecognitionStatus.FAILED
         return FileProfile(
             input_file=str(input_path),
             file_type=file_type,
@@ -210,9 +198,9 @@ def profile_input_file(
             has_text_layer=False,
             text_layer_quality=TextLayerQuality.NONE,
             ocr_required=True,
-            unit_strategy="single" if ocr_enabled else "unsupported",
-            status=status,
-            messages=[] if ocr_enabled else ["图片发票需要 OCR，当前配置未启用 OCR。"],
+            unit_strategy="single",
+            status=RecognitionStatus.READY,
+            messages=[],
         )
 
     return FileProfile(
