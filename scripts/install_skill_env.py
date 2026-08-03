@@ -163,7 +163,7 @@ def configure_ledger(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Create the project .venv and install invoice skill dependencies into it."
+        description="Create the Skill environment or configure its persistent ledger."
     )
     parser.add_argument(
         "--ocr",
@@ -175,11 +175,19 @@ def main(argv: list[str] | None = None) -> int:
         "--ledger",
         help="User-selected folder or .xlsx path for the persistent invoice ledger.",
     )
+    parser.add_argument(
+        "--ledger-only",
+        action="store_true",
+        help="Configure the ledger path without creating the environment, installing dependencies, or running doctor checks.",
+    )
     parser.add_argument("--verbose", action="store_true", help="Stream installer subprocess output.")
     args = parser.parse_args(argv)
 
     if sys.version_info < (3, 11):
         print("Python 3.11+ is required to create this skill environment.", file=sys.stderr)
+        return 2
+    if args.ledger_only and not args.ledger:
+        print("--ledger-only 必须同时提供 --ledger <文件夹或.xlsx路径>。", file=sys.stderr)
         return 2
     saved_ledger = _saved_ledger()
     ledger_location = args.ledger
@@ -201,6 +209,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         action = "已创建" if created else "已沿用"
         print(f"{action}发票采集台账：{saved_ledger}")
+    if args.ledger_only:
+        return 0
     try:
         plan = build_install_plan(args.ocr)
     except ValueError as exc:

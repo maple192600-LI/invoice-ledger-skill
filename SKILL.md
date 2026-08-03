@@ -26,27 +26,21 @@ description: 批量读取本地 PDF、图片、XML 等发票文件，提取票�
 
 ## 2. 准备环境
 
-已有 `.venv` 时直接检查，不重复安装：
-
-```powershell
-# 只处理原始文本型 PDF、XML、TXT 或 Markdown
-.\.venv\Scripts\python.exe scripts\fp_doctor.py --no-ocr
-
-# 发现 OCR 页面后再运行完整 OCR 环境检查
-# .\.venv\Scripts\python.exe scripts\fp_doctor.py
-```
-
-只处理文本型文件时，检查结果不能是 `blocked`。OCR 环境由预检统计决定，避免为纯文本批次安装 OCR。
-
-`.venv` 不存在或检查结果为 `blocked` 时，先准备基础环境：
+首次安装或 `.venv\Scripts\python.exe` 不存在时，准备基础环境并记录台账：
 
 ```powershell
 python scripts\install_skill_env.py --ocr none --ledger <文件夹或台账.xlsx>
 ```
 
-环境已经可用、只需创建或切换台账时，运行 `python scripts\install_skill_env.py --ocr none --ledger <文件夹或台账.xlsx>`，避免重复安装 OCR。
+`.venv` 已存在且保存的台账路径有效时，不要重复运行安装器或 `fp_doctor.py`，直接进入写入前检查。只需创建或切换台账时运行：
 
-预检返回码为 `3` 时，运行 `python scripts\install_skill_env.py --ocr auto --ledger <文件夹或台账.xlsx>`；安装器自动选择 GPU 或 CPU 依赖，不由执行者判断数量或设备。安装完成后重新运行预检。只要 `ocr_required_pages` 大于 `0`，就运行完整的 `fp_doctor.py`，确认 `paddle` 和 `paddleocr` 均可用；`text_only_ready` 和 `blocked` 都不能继续执行 OCR。失败时保留真实错误，不继续写入台账。
+```powershell
+python scripts\install_skill_env.py --ledger-only --ledger <文件夹或台账.xlsx>
+```
+
+该命令只创建或记录台账，不创建虚拟环境、不安装依赖、不运行环境检查。
+
+预检返回码为 `3` 时，运行 `python scripts\install_skill_env.py --ocr auto --ledger <文件夹或台账.xlsx>`；安装器自动选择 GPU 或 CPU 依赖并完成安装后环境检查。安装完成后重新运行预检。Skill 或依赖升级后，以及实际执行出现 Python、依赖、OCR 模型、CUDA 或配置错误时，再运行 `fp_doctor.py` 定位问题。环境错误未解决时保留真实错误，不继续写入台账。
 
 ## 3. 选择识别配置
 
